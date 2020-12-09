@@ -127,7 +127,7 @@ void AirlineManager::setPositionAllocator(NodeContainer & nodes)
 
 int AirlineManager::cmd_802154_set_ext_addr(uint16_t id, char *buf, int buflen)
 {
-    int ret = iface->setAddress(&g_ifctx, id, buf, buflen);
+    int ret = iface->setParam(&g_ifctx, id, CL_IEEE_802_15_4_EXT_ADDRESS, buf, buflen);
     if (ret == SUCCESS) {
         return snprintf(buf, buflen, "SUCCESS");
     }
@@ -193,14 +193,15 @@ void AirlineManager::setNodeSpecificParam(NodeContainer & nodes)
             nodePos(nodes, i, x, y, z);
         }
         if(ni->getPromisMode()) {
-            iface->setPromiscuous(&g_ifctx, i);
+            iface->setParam(&g_ifctx, i, CL_IEEE_802_15_4_PROMISCUOUS, (void*) NULL, 0);
         }
         txpower = ni->getkv("txPower");
         if (txpower.empty())
             txpower = deftxpower;
 
         if (!txpower.empty()) {
-            iface->setTxPower(&g_ifctx, i, stod(txpower));
+            double dtxpower = stod(txpower);
+            iface->setParam(&g_ifctx, i, CL_IEEE_802_15_4_TX_POWER, (void*) &dtxpower, sizeof(double));
         }
     }
 }
@@ -223,10 +224,10 @@ void AirlineManager::msgrecvCallback(msg_buf_t *mbuf)
         else {
             al_handle_cmd(mbuf);
         }
-        if(!(mbuf->flags & MBUF_DO_NOT_RESPOND)) {
-            // TODO MBUF_DO_NOT_RESPOND is not used anywhere
-            cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t));
-        }
+        /* if(!(mbuf->flags & MBUF_DO_NOT_RESPOND)) { */
+        /*     // TODO MBUF_DO_NOT_RESPOND is not used anywhere */
+        /*     cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t)); */
+        /* } */
         return;
     }
 
@@ -260,7 +261,7 @@ void AirlineManager::msgReader(void)
     while(1) {
         cl_recvfrom_q(MTYPE(AIRLINE,CL_MGR_ID), mbuf, sizeof(mbuf_buf), CL_FLAG_NOWAIT);
         if(mbuf->len) {
-t           msgrecvCallback(mbuf);
+            msgrecvCallback(mbuf);
             usleep(1);
         } else {
             break;

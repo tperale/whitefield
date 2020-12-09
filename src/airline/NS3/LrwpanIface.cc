@@ -204,46 +204,6 @@ static int lrwpanSetup(ifaceCtx_t *ctx)
 
 static int lrwpanSetTxPower(ifaceCtx_t *ctx, int id, double txpow)
 {
-    Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
-    LrWpanSpectrumValueHelper svh;
-    Ptr<SpectrumValue> psd = svh.CreateTxPowerSpectralDensity (txpow, 11);
-
-    if (!dev || !psd) {
-        CERROR << "set tx power failed for lrwpan\n";
-        return FAILURE;
-    }
-    INFO("Node:%d txpower:%f\n", id, txpow);
-    dev->GetPhy()->SetTxPowerSpectralDensity(psd);
-    return SUCCESS;
-}
-
-static int lrwpanSetPromiscuous(ifaceCtx_t *ctx, int id)
-{
-    Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
-
-    if (!dev) {
-        CERROR << "get dev failed for lrwpan\n";
-        return FAILURE;
-    }
-    INFO("Set promis mode for lr-wpan iface node:%d\n", id);
-    /* dev->GetMac()->SetPromiscuousMode(1); */
-    return SUCCESS;
-}
-
-static int lrwpanSetAddress(ifaceCtx_t *ctx, int id, const char *buf, int sz)
-{
-    Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
-
-    if (!dev) {
-        CERROR << "get dev failed for lrwpan\n";
-        return FAILURE;
-    }
-    if (sz == 8) {
-                Mac64Address address(buf);
-        INFO("Setting Ext Addr:%s\n", buf);
-                dev->GetMac()->SetExtendedAddress (address);
-    }
-    return SUCCESS;
 }
 
 static void lrwpanCleanup(ifaceCtx_t *ctx)
@@ -267,7 +227,49 @@ static int lrwpanSetParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, 
         // TODO change the architecture to have a list of class 
         // with their own set of parameter
         break;
+    case CL_IEEE_802_15_4_EXT_ADDRESS: {
+        Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
+        if (!dev) {
+            CERROR << "get dev failed for lrwpan\n";
+            return FAILURE;
+        }
+        // TODO HANDLE_CMD seems to always pass the max len (2048) as argument.
+        if (len == 8) {
+            Mac64Address address((char*) src);
+            INFO("Setting Ext Addr:%s\n", (char*) src);
+            dev->GetMac()->SetExtendedAddress (address);
+        }
+        return SUCCESS;
     }
+    case CL_IEEE_802_15_4_PROMISCUOUS: {
+        Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
+
+        if (!dev) {
+            CERROR << "get dev failed for lrwpan\n";
+            return FAILURE;
+        }
+        INFO("Set promis mode for lr-wpan iface node:%d\n", id);
+        /* dev->GetMac()->SetPromiscuousMode(1); */
+        return SUCCESS;
+    }
+    case CL_IEEE_802_15_4_TX_POWER: {
+        Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
+        LrWpanSpectrumValueHelper svh;
+        double txpow = *((double*) src);
+        Ptr<SpectrumValue> psd = svh.CreateTxPowerSpectralDensity (txpow, 11);
+
+        if (!dev || !psd) {
+            CERROR << "set tx power failed for lrwpan\n";
+            return FAILURE;
+        }
+        INFO("Node:%d txpower:%f\n", id, txpow);
+        dev->GetPhy()->SetTxPowerSpectralDensity(psd);
+        return SUCCESS;
+    }
+    default:
+        break;
+    }
+    return SUCCESS;
 }
 
 static int lrwpanSendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
@@ -321,11 +323,8 @@ static int lrwpanSendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
 
 ifaceApi_t lrwpanIface = {
     .setup          = lrwpanSetup,
-    .setTxPower     = lrwpanSetTxPower,
-    .setPromiscuous = lrwpanSetPromiscuous,
-    .setAddress     = lrwpanSetAddress,
+    .setParam       = lrwpanSetParam,
     .sendPacket     = lrwpanSendPacket,
-    .setParam       = lrWpanSetParam,
     .cleanup        = lrwpanCleanup,
 };
 

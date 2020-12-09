@@ -46,9 +46,6 @@ typedef struct _iface_ctx_ {
 typedef struct _iface_ {
     // Callbacks
     int (*setup)(ifaceCtx_t *ctx);
-    int (*setTxPower)(ifaceCtx_t *ctx, int id, double txpow);
-    int (*setPromiscuous)(ifaceCtx_t *ctx, int id);
-    int (*setAddress)(ifaceCtx_t *ctx, int id, const char *buf, size_t );
     int (*setParam)(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, size_t len);
     int (*sendPacket)(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf);
     void (*cleanup)(ifaceCtx_t *ctx);
