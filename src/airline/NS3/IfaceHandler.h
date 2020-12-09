@@ -43,30 +43,13 @@ typedef struct _iface_ctx_ {
 #endif
 } ifaceCtx_t;
 
-typedef struct _iface_ {
-    // Callbacks
-    int (*setup)(ifaceCtx_t *ctx);
-    int (*setParam)(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, size_t len);
-    int (*sendPacket)(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf);
-    void (*cleanup)(ifaceCtx_t *ctx);
-
-    uint8_t inited : 1;
-} ifaceApi_t;
-
-/* class IFace { */
-/* public: */
-/*     virtual int setup(); */
-/*     virtual int setParam(int param, void* arg); */
-/*     virtual int sendPacket(); */
-/*     virtual int setRxCallback(); */
-/* }; */
-
-typedef enum {
-    IFACE_LRWPAN, // lr-wpan
-    IFACE_PLC,    // Power Line Comm
-    IFACE_MAX
-} IfaceType;
-
-ifaceApi_t* getIfaceApi(ifaceCtx_t *ctx);
+class IFace {
+public:
+    virtual int setup(ifaceCtx_t* ctx) = 0;
+    virtual int setParam(ifaceCtx_t* ctx, int id, cl_param_t param, void* src, size_t len) = 0;
+    virtual int sendPacket(ifaceCtx_t* ctx, int id, msg_buf_t* mbuf) = 0;
+    /* virtual int setRxCallback(ifaceCtx_t* ctx) = 0; */
+    virtual ~IFace() {};
+};
 
 #endif // _IFACEHANDLER_H_

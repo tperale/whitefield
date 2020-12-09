@@ -24,6 +24,7 @@
 #include <ns3/lr-wpan-module.h>
 #include <ns3/spectrum-value.h>
 
+#include <LrwpanIface.h>
 #include <PropagationModel.h>
 #include <common.h>
 #include <Nodeinfo.h>
@@ -41,27 +42,27 @@ static Ptr<LrWpanNetDevice> getDev(ifaceCtx_t *ctx, int id)
     return dev;
 }
 
-static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status)
-{
-    switch(status) {
-        case IEEE_802_15_4_SUCCESS:
-            return WF_STATUS_ACK_OK;
-        case IEEE_802_15_4_NO_ACK:
-            return WF_STATUS_NO_ACK;
-        case IEEE_802_15_4_TRANSACTION_OVERFLOW:
-        case IEEE_802_15_4_TRANSACTION_EXPIRED:
-        case IEEE_802_15_4_CHANNEL_ACCESS_FAILURE:
-            return WF_STATUS_ERR;       //can retry later
-        case IEEE_802_15_4_INVALID_GTS:
-        case IEEE_802_15_4_COUNTER_ERROR:
-        case IEEE_802_15_4_FRAME_TOO_LONG:
-        case IEEE_802_15_4_UNAVAILABLE_KEY:
-        case IEEE_802_15_4_UNSUPPORTED_SECURITY:
-        case IEEE_802_15_4_INVALID_PARAMETER:
-        default:
-            return WF_STATUS_FATAL;
-    }
-}
+/* static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status) */
+/* { */
+/*     switch(status) { */
+/*         case IEEE_802_15_4_SUCCESS: */
+/*             return WF_STATUS_ACK_OK; */
+/*         case IEEE_802_15_4_NO_ACK: */
+/*             return WF_STATUS_NO_ACK; */
+/*         case IEEE_802_15_4_TRANSACTION_OVERFLOW: */
+/*         case IEEE_802_15_4_TRANSACTION_EXPIRED: */
+/*         case IEEE_802_15_4_CHANNEL_ACCESS_FAILURE: */
+/*             return WF_STATUS_ERR;       //can retry later */
+/*         case IEEE_802_15_4_INVALID_GTS: */
+/*         case IEEE_802_15_4_COUNTER_ERROR: */
+/*         case IEEE_802_15_4_FRAME_TOO_LONG: */
+/*         case IEEE_802_15_4_UNAVAILABLE_KEY: */
+/*         case IEEE_802_15_4_UNSUPPORTED_SECURITY: */
+/*         case IEEE_802_15_4_INVALID_PARAMETER: */
+/*         default: */
+/*             return WF_STATUS_FATAL; */
+/*     } */
+/* } */
 
 static uint16_t addr2id(const Mac16Address addr)
 {
@@ -126,7 +127,7 @@ static int setAllNodesParam(NodeContainer & nodes)
     Ptr<SingleModelSpectrumChannel> channel;
     string loss_model = CFG("lossModel");
     string del_model = CFG("delayModel");
-    bool macAdd = CFG_INT("macHeaderAdd", 1);
+    /* bool macAdd = CFG_INT("macHeaderAdd", 1); */
     LrWpanSpectrumValueHelper svh;
 
     if (!loss_model.empty() || !del_model.empty()) {
@@ -185,7 +186,7 @@ static int setAllNodesParam(NodeContainer & nodes)
     return SUCCESS;
 }
 
-static int lrwpanSetup(ifaceCtx_t *ctx)
+int LrwpanIface::setup(ifaceCtx_t *ctx)
 {
     INFO("setting up lrwpan\n");
     static LrWpanHelper lrWpanHelper;
@@ -202,14 +203,6 @@ static int lrwpanSetup(ifaceCtx_t *ctx)
     return SUCCESS;
 }
 
-static int lrwpanSetTxPower(ifaceCtx_t *ctx, int id, double txpow)
-{
-}
-
-static void lrwpanCleanup(ifaceCtx_t *ctx)
-{
-}
-
 static Mac16Address id2addr(const uint16_t id)
 {
     Mac16Address mac;
@@ -220,7 +213,7 @@ static Mac16Address id2addr(const uint16_t id)
     return mac;
 };
 
-static int lrwpanSetParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, size_t len)
+int LrwpanIface::setParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, size_t len)
 {
     switch (param) {
     case CL_IEEE_802_15_4_DEST_ADDRESS:
@@ -272,7 +265,7 @@ static int lrwpanSetParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, 
     return SUCCESS;
 }
 
-static int lrwpanSendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
+int LrwpanIface::sendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
 {
     int numNodes = stoi(CFG("numOfNodes"));
     McpsDataRequestParams params;
@@ -321,10 +314,11 @@ static int lrwpanSendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
     return SUCCESS;
 }
 
-ifaceApi_t lrwpanIface = {
-    .setup          = lrwpanSetup,
-    .setParam       = lrwpanSetParam,
-    .sendPacket     = lrwpanSendPacket,
-    .cleanup        = lrwpanCleanup,
-};
 
+LrwpanIface::LrwpanIface() {
+    INFO("LrWPAN Initialized\n");
+    fflush(stdout);
+}
+
+LrwpanIface::~LrwpanIface() {
+}

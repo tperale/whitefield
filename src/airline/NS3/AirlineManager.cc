@@ -34,6 +34,7 @@
 #include "Airline.h"
 #include "Command.h"
 #include "mac_stats.h"
+#include "LrwpanIface.h"
 
 int getNodeConfigVal(int id, char *key, char *val, int vallen)
 {
@@ -206,9 +207,6 @@ void AirlineManager::setNodeSpecificParam(NodeContainer & nodes)
     }
 }
 
-/* void AirlineManager::handleCmd(msg_buf_t *mbuf) */
-/* { */
-/* } */
 void AirlineManager::msgrecvCallback(msg_buf_t *mbuf)
 {
     NodeContainer const & n = NodeContainer::GetGlobal (); 
@@ -224,9 +222,9 @@ void AirlineManager::msgrecvCallback(msg_buf_t *mbuf)
         else {
             al_handle_cmd(mbuf);
         }
+        cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t));
+        /* TODO MBUF_DO_NOT_RESPOND is not used anywhere */
         /* if(!(mbuf->flags & MBUF_DO_NOT_RESPOND)) { */
-        /*     // TODO MBUF_DO_NOT_RESPOND is not used anywhere */
-        /*     cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t)); */
         /* } */
         return;
     }
@@ -275,24 +273,6 @@ void AirlineManager::ScheduleCommlineRX(void)
     m_sendEvent = Simulator::Schedule (Seconds(0.001), &AirlineManager::msgReader, this);
 }
 
-int AirlineManager::startIface()
-{
-    int ret;
-
-    iface = getIfaceApi(&g_ifctx);
-
-    if (iface->inited) {
-        ERROR("Interface is already inited\n");
-        return SUCCESS;
-    }
-
-    if ((ret = iface->setup(&g_ifctx))) {
-        iface->inited = 1;
-    }
-
-    return ret;
-}
-
 int AirlineManager::startNetwork(wf::Config & cfg)
 {
     try {
@@ -309,7 +289,7 @@ int AirlineManager::startNetwork(wf::Config & cfg)
 
         setPositionAllocator(g_ifctx.nodes);
 
-        if (startIface() != SUCCESS) {
+        if (iface->setup(&g_ifctx) != SUCCESS) {
             return FAILURE;
         }
 
@@ -336,6 +316,17 @@ int AirlineManager::startNetwork(wf::Config & cfg)
 AirlineManager::AirlineManager(wf::Config & cfg)
 {
     m_sendEvent = EventId ();
+
+    string phy = CFG("PHY");
+    if (!stricmp(phy, "plc")) {
+        // TODO PLC
+    } else if (!stricmp(phy, "lr-wpan")) {
+        iface = new LrwpanIface();
+    } else {
+        iface = new LrwpanIface();
+        CERROR << "PHY Does not exist\n";
+    }
+
     startNetwork(cfg);
     CINFO << "AirlineManager started" << endl;
 }
@@ -343,4 +334,5 @@ AirlineManager::AirlineManager(wf::Config & cfg)
 AirlineManager::~AirlineManager() 
 {
     Simulator::Cancel (m_sendEvent);
+    delete iface;
 }

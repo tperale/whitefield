@@ -35,7 +35,7 @@ using namespace ns3;
 class AirlineManager {
 private:
     ifaceCtx_t g_ifctx;
-    ifaceApi_t *iface;
+    IFace* iface;
     EventId m_sendEvent;
 
     void    msgrecvCallback(msg_buf_t *mbuf);
