@@ -21,6 +21,8 @@
 #ifndef _COMMLINE_H_
 #define _COMMLINE_H_
 
+#include <bits/stdint-intn.h>
+#include <bits/stdint-uintn.h>
 #include <sys/time.h>
 
 #ifdef __cplusplus
@@ -97,6 +99,7 @@ int cl_get_descriptor(const long mtype);
 
 typedef enum {
     CL_IEEE_802_15_4_DEST_ADDRESS = 1,
+    CL_IEEE_802_15_4_EXT_ADDRESS,
     CL_IEEE_802_15_4_TX_POWER,
 } cl_param_t;
 
