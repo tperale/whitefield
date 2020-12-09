@@ -45,21 +45,3 @@ ifaceApi_t *getIfaceApi(ifaceCtx_t *ctx)
     if (!stricmp(phy, "plc")) iftype = IFACE_PLC;
     return &g_iflist[iftype];
 }
-
-int ifaceInstall(ifaceCtx_t *ctx)
-{
-    int ret;
-    ifaceApi_t *iface = NULL;
-
-    iface = getIfaceApi(ctx);
-    if (iface->inited) {
-        ERROR("Interface is already inited\n");
-        return SUCCESS;
-    }
-    ret = iface->setup(ctx);
-    if (ret == SUCCESS) {
-        iface->inited = 1;
-    }
-    return ret;
-}
-

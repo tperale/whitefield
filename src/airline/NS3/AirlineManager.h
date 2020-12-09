@@ -28,12 +28,19 @@
 #include <ns3/node-container.h>
 #include <ns3/core-module.h>
 
+#include "IfaceHandler.h"
+
 using namespace ns3;
 
 class AirlineManager {
 private:
+    ifaceCtx_t g_ifctx;
+    ifaceApi_t *iface;
+    EventId m_sendEvent;
+
     void    msgrecvCallback(msg_buf_t *mbuf);
     int     phyInstall(NodeContainer &nodes);
+    int     startIface();
     int     startNetwork(wf::Config &cfg);
     void    nodePos(NodeContainer const &nodes, uint16_t id, double &x, double &y, double &z);
     int     cmd_node_exec(uint16_t id, char *buf, int buflen);
@@ -47,7 +54,6 @@ private:
     int     setAllNodesParam(NodeContainer &nodes);
     void    msgReader(void);
     void    ScheduleCommlineRX(void);
-    EventId m_sendEvent;
 
 public:
     AirlineManager(wf::Config &cfg);

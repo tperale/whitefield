@@ -18,6 +18,7 @@
  * @}
  */
 
+#include "commline/commline.h"
 #include <ns3/single-model-spectrum-channel.h>
 #include <ns3/mobility-module.h>
 #include <ns3/lr-wpan-module.h>
@@ -50,7 +51,7 @@ static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status)
         case IEEE_802_15_4_TRANSACTION_OVERFLOW:
         case IEEE_802_15_4_TRANSACTION_EXPIRED:
         case IEEE_802_15_4_CHANNEL_ACCESS_FAILURE:
-            return WF_STATUS_ERR;	//can retry later
+            return WF_STATUS_ERR;       //can retry later
         case IEEE_802_15_4_INVALID_GTS:
         case IEEE_802_15_4_COUNTER_ERROR:
         case IEEE_802_15_4_FRAME_TOO_LONG:
@@ -74,12 +75,12 @@ static uint16_t addr2id(const Mac16Address addr)
 
 static void DataConfirm (int id, McpsDataConfirmParams params)
 {
-    uint16_t dst_id = addr2id(params.m_addrShortDstAddr);
-    uint8_t status;
+    /* uint16_t dst_id = addr2id(params.m_addrShortDstAddr); */
+    /* uint8_t status; */
 
-    if(dst_id == 0xffff) {
-        return;
-    }
+    /* if(dst_id == 0xffff) { */
+    /*     return; */
+    /* } */
 #if 0
     INFO << "Sending ACK status" 
          << " src=" << id << " dst=" << dst_id
@@ -88,8 +89,8 @@ static void DataConfirm (int id, McpsDataConfirmParams params)
          << " pktSize(inc mac-hdr)=" << params.m_pktSz << "\n";
     fflush(stdout);
 #endif
-    status = wf_ack_status(params.m_status);
-    SendAckToStackline(id, dst_id, status, params.m_retries+1);
+    /* status = wf_ack_status(params.m_status); */
+    /* SendAckToStackline(id, dst_id, status, params.m_retries+1); */
 }
 
 static void DataIndication (int id, McpsDataIndicationParams params,
@@ -153,35 +154,34 @@ static int setAllNodesParam(NodeContainer & nodes)
         }
     }
 
-	for (NodeContainer::Iterator i = nodes.Begin (); i != nodes.End (); ++i) 
-	{ 
-		Ptr<Node> node = *i; 
-		Ptr<LrWpanNetDevice> dev = node->GetDevice(0)->GetObject<LrWpanNetDevice>();
+    for (NodeContainer::Iterator i = nodes.Begin (); i != nodes.End (); ++i) { 
+        Ptr<Node> node = *i; 
+        Ptr<LrWpanNetDevice> dev = node->GetDevice(0)->GetObject<LrWpanNetDevice>();
         if (!dev) {
             CERROR << "Coud not get device\n";
             continue;
         }
-		dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
+        dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
 
         /* Set Callbacks */
-		dev->GetMac()->SetMcpsDataConfirmCallback(
+        dev->GetMac()->SetMcpsDataConfirmCallback(
                 MakeBoundCallback(DataConfirm, node->GetId()));
-		dev->GetMac()->SetMcpsDataIndicationCallback(
-                MakeBoundCallback (DataIndication, node->GetId()));
-        setShortAddress(dev, (uint16_t)node->GetId());
+        dev->GetMac()->SetMcpsDataIndicationCallback(
+                MakeBoundCallback(DataIndication, node->GetId()));
+        setShortAddress(dev, (uint16_t) node->GetId());
 
-        if(!macAdd) {
-            dev->GetMac()->SetMacHeaderAdd(macAdd);
+        /* if(!macAdd) { */
+            /* dev->GetMac()->SetMacHeaderAdd(macAdd); */
 
             //In case where stackline itself add mac header, the airline needs
             //to be set in promiscuous mode so that all the packets with
             //headers are transmitted as is to the stackline on reception
             //dev->GetMac()->SetPromiscuousMode(1);
-        }
+        /* } */
         if (!loss_model.empty() || !del_model.empty()) {
             dev->SetChannel (channel);
         }
-	}
+    }
     return SUCCESS;
 }
 
@@ -226,7 +226,7 @@ static int lrwpanSetPromiscuous(ifaceCtx_t *ctx, int id)
         return FAILURE;
     }
     INFO("Set promis mode for lr-wpan iface node:%d\n", id);
-    dev->GetMac()->SetPromiscuousMode(1);
+    /* dev->GetMac()->SetPromiscuousMode(1); */
     return SUCCESS;
 }
 
@@ -239,9 +239,9 @@ static int lrwpanSetAddress(ifaceCtx_t *ctx, int id, const char *buf, int sz)
         return FAILURE;
     }
     if (sz == 8) {
-		Mac64Address address(buf);
+                Mac64Address address(buf);
         INFO("Setting Ext Addr:%s\n", buf);
-		dev->GetMac()->SetExtendedAddress (address);
+                dev->GetMac()->SetExtendedAddress (address);
     }
     return SUCCESS;
 }
@@ -259,6 +259,16 @@ static Mac16Address id2addr(const uint16_t id)
     mac.CopyFrom(idstr);
     return mac;
 };
+
+static int lrwpanSetParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, size_t len)
+{
+    switch (param) {
+    case CL_IEEE_802_15_4_DEST_ADDRESS:
+        // TODO change the architecture to have a list of class 
+        // with their own set of parameter
+        break;
+    }
+}
 
 static int lrwpanSendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
 {
@@ -305,17 +315,17 @@ static int lrwpanSendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
     fflush(stdout);
 #endif
 
-    Simulator::ScheduleNow (&LrWpanMac::McpsDataRequest,
-            dev->GetMac(), params, p0);
+    Simulator::ScheduleNow(&LrWpanMac::McpsDataRequest, dev->GetMac(), params, p0);
     return SUCCESS;
 }
 
 ifaceApi_t lrwpanIface = {
-    setup          : lrwpanSetup,
-    setTxPower     : lrwpanSetTxPower,
-    setPromiscuous : lrwpanSetPromiscuous,
-    setAddress     : lrwpanSetAddress,
-    sendPacket     : lrwpanSendPacket,
-    cleanup        : lrwpanCleanup,
+    .setup          = lrwpanSetup,
+    .setTxPower     = lrwpanSetTxPower,
+    .setPromiscuous = lrwpanSetPromiscuous,
+    .setAddress     = lrwpanSetAddress,
+    .sendPacket     = lrwpanSendPacket,
+    .setParam       = lrWpanSetParam,
+    .cleanup        = lrwpanCleanup,
 };
 

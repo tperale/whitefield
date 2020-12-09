@@ -44,11 +44,13 @@ int  cl_init(const long my_mtype, const uint8_t flags);
 int  cl_bind(const long my_mtype);
 void cl_cleanup(void);
 
-//msg_buf_t::flags defined
-#define MBUF_IS_ACK         (1 << 0) //Mbuf is an ACK
-#define MBUF_IS_CMD         (1 << 1) //Mbuf is a cmd
-#define MBUF_DO_NOT_RESPOND (1 << 2) //Cmd does not need a response
-//#define	MBUF_OUTPUT_JSON	(1<<2)
+enum {
+    MBUF_IS_ACK = 1, // Mbuf is an ACK
+    MBUF_IS_CMD,     // Mbuf is a cmd
+    MBUF_IS_PARAM,   // The command will change the param from NS3
+    MBUF_IS_SEND,    // The command will send a packet
+};
+
 
 #pragma pack(push, 1)
 typedef struct _msg_buf_ {
@@ -60,6 +62,7 @@ typedef struct _msg_buf_ {
     uint16_t src_id;
     uint16_t dst_id;
     uint8_t  flags;
+    uint8_t  param;
     union {
         struct {
             //Note that you can have one or both or none of the indicators.
@@ -91,6 +94,11 @@ typedef struct _msg_buf_ {
 int cl_recvfrom_q(const long mtype, msg_buf_t *mbuf, uint16_t len, uint16_t flags);
 int cl_sendto_q(const long mtype, msg_buf_t *mbuf, uint16_t len);
 int cl_get_descriptor(const long mtype);
+
+typedef enum {
+    CL_IEEE_802_15_4_DEST_ADDRESS = 1,
+    CL_IEEE_802_15_4_TX_POWER,
+} cl_param_t;
 
 enum {
     STACKLINE = 1,

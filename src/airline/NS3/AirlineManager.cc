@@ -18,6 +18,7 @@
  * @}
  */
 
+#include "commline/commline.h"
 #define	_AIRLINEMANAGER_CC_
 
 #include <map>
@@ -33,9 +34,6 @@
 #include "Airline.h"
 #include "Command.h"
 #include "mac_stats.h"
-#include "IfaceHandler.h"
-
-ifaceCtx_t g_ifctx;
 
 int getNodeConfigVal(int id, char *key, char *val, int vallen)
 {
@@ -129,7 +127,7 @@ void AirlineManager::setPositionAllocator(NodeContainer & nodes)
 
 int AirlineManager::cmd_802154_set_ext_addr(uint16_t id, char *buf, int buflen)
 {
-    int ret = ifaceSetAddress(&g_ifctx, id, buf, buflen);
+    int ret = iface->setAddress(&g_ifctx, id, buf, buflen);
     if (ret == SUCCESS) {
         return snprintf(buf, buflen, "SUCCESS");
     }
@@ -165,40 +163,6 @@ int AirlineManager::cmd_set_node_position(uint16_t id, char *buf, int buflen)
     return snprintf(buf, buflen, "SUCCESS");
 }
 
-void AirlineManager::msgrecvCallback(msg_buf_t *mbuf)
-{
-    NodeContainer const & n = NodeContainer::GetGlobal (); 
-    int numNodes = stoi(CFG("numOfNodes"));
-
-    if(mbuf->flags & MBUF_IS_CMD) {
-        if(0) {}
-            HANDLE_CMD(mbuf, cmd_node_exec)
-            HANDLE_CMD(mbuf, cmd_node_position)
-            HANDLE_CMD(mbuf, cmd_set_node_position)
-            HANDLE_CMD(mbuf, cmd_802154_set_ext_addr)
-        else {
-            al_handle_cmd(mbuf);
-        }
-        if(!(mbuf->flags & MBUF_DO_NOT_RESPOND)) {
-            cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t));
-        }
-        return;
-    }
-    if(!IN_RANGE(mbuf->src_id, 0, numNodes)) {
-        CERROR << "rcvd src id=" << mbuf->src_id << " out of range!!\n";
-        return;
-    }
-    if(mbuf->dst_id == CL_DSTID_MACHDR_PRESENT) {
-        if(CFG_INT("macHeaderAdd", 1)) {
-            CERROR << "rcvd a packet from stackline with DSTID_MACHDR_PRESENT set but config file does not have macHeaderAdd=0\n";
-            CERROR << "If you are using openthread, please set macHeaderAdd=0 to prevent Airline from adding its own mac hdr\n";
-            return;
-        }
-    }
-    ifaceSendPacket(&g_ifctx, mbuf->src_id, mbuf);
-    wf::Macstats::set_stats(AL_TX, mbuf);
-}
-
 void AirlineManager::nodePos(NodeContainer const & nodes, 
         uint16_t id, double & x, double & y, double & z)
 {
@@ -229,16 +193,103 @@ void AirlineManager::setNodeSpecificParam(NodeContainer & nodes)
             nodePos(nodes, i, x, y, z);
         }
         if(ni->getPromisMode()) {
-            ifaceSetPromiscuous(&g_ifctx, i);
+            iface->setPromiscuous(&g_ifctx, i);
         }
         txpower = ni->getkv("txPower");
         if (txpower.empty())
             txpower = deftxpower;
 
         if (!txpower.empty()) {
-            ifaceSetTxPower(&g_ifctx, i, stod(txpower));
+            iface->setTxPower(&g_ifctx, i, stod(txpower));
         }
     }
+}
+
+/* void AirlineManager::handleCmd(msg_buf_t *mbuf) */
+/* { */
+/* } */
+void AirlineManager::msgrecvCallback(msg_buf_t *mbuf)
+{
+    NodeContainer const & n = NodeContainer::GetGlobal (); 
+    int numNodes = stoi(CFG("numOfNodes"));
+
+    if(mbuf->flags == MBUF_IS_CMD) {
+        // TODO Handle CMD are commands written to the shell I need to change the location the cmd are handled to IFace
+        if(0) {}
+            HANDLE_CMD(mbuf, cmd_node_exec)
+            HANDLE_CMD(mbuf, cmd_node_position)
+            HANDLE_CMD(mbuf, cmd_set_node_position)
+            HANDLE_CMD(mbuf, cmd_802154_set_ext_addr)
+        else {
+            al_handle_cmd(mbuf);
+        }
+        if(!(mbuf->flags & MBUF_DO_NOT_RESPOND)) {
+            // TODO MBUF_DO_NOT_RESPOND is not used anywhere
+            cl_sendto_q(MTYPE(MONITOR, CL_MGR_ID), mbuf, mbuf->len+sizeof(msg_buf_t));
+        }
+        return;
+    }
+
+    if(!IN_RANGE(mbuf->src_id, 0, numNodes)) {
+        CERROR << "rcvd src id=" << mbuf->src_id << " out of range!!\n";
+        return;
+    } else if(mbuf->dst_id == CL_DSTID_MACHDR_PRESENT) {
+        if(CFG_INT("macHeaderAdd", 1)) {
+            CERROR << "rcvd a packet from stackline with DSTID_MACHDR_PRESENT set but config file does not have macHeaderAdd=0\n";
+            CERROR << "If you are using openthread, please set macHeaderAdd=0 to prevent Airline from adding its own mac hdr\n";
+            return;
+        }
+    }
+
+    switch (mbuf->flags) {
+    case MBUF_IS_SEND:
+        iface->sendPacket(&g_ifctx, mbuf->src_id, mbuf);
+        wf::Macstats::set_stats(AL_TX, mbuf);
+        break;
+    case MBUF_IS_PARAM:
+        iface->setParam(&g_ifctx, mbuf->src_id, (cl_param_t) mbuf->param, mbuf->buf, mbuf->len);
+        break;
+    default:
+        break;
+    }
+}
+
+void AirlineManager::msgReader(void)
+{
+    DEFINE_MBUF(mbuf);
+    while(1) {
+        cl_recvfrom_q(MTYPE(AIRLINE,CL_MGR_ID), mbuf, sizeof(mbuf_buf), CL_FLAG_NOWAIT);
+        if(mbuf->len) {
+t           msgrecvCallback(mbuf);
+            usleep(1);
+        } else {
+            break;
+        }
+    }
+    ScheduleCommlineRX();
+}
+
+void AirlineManager::ScheduleCommlineRX(void)
+{
+    m_sendEvent = Simulator::Schedule (Seconds(0.001), &AirlineManager::msgReader, this);
+}
+
+int AirlineManager::startIface()
+{
+    int ret;
+
+    iface = getIfaceApi(&g_ifctx);
+
+    if (iface->inited) {
+        ERROR("Interface is already inited\n");
+        return SUCCESS;
+    }
+
+    if ((ret = iface->setup(&g_ifctx))) {
+        iface->inited = 1;
+    }
+
+    return ret;
 }
 
 int AirlineManager::startNetwork(wf::Config & cfg)
@@ -257,7 +308,7 @@ int AirlineManager::startNetwork(wf::Config & cfg)
 
         setPositionAllocator(g_ifctx.nodes);
 
-        if (ifaceInstall(&g_ifctx) != SUCCESS) {
+        if (startIface() != SUCCESS) {
             return FAILURE;
         }
 
@@ -279,27 +330,6 @@ int AirlineManager::startNetwork(wf::Config & cfg)
     }
 
     return SUCCESS;
-}
-
-void AirlineManager::ScheduleCommlineRX(void)
-{
-    m_sendEvent = Simulator::Schedule (Seconds(0.001), &AirlineManager::msgReader, this);
-}
-
-void AirlineManager::msgReader(void)
-{
-    DEFINE_MBUF(mbuf);
-    while(1) {
-        cl_recvfrom_q(MTYPE(AIRLINE,CL_MGR_ID),
-        mbuf, sizeof(mbuf_buf), CL_FLAG_NOWAIT);
-        if(mbuf->len) {
-            msgrecvCallback(mbuf);
-            usleep(1);
-        } else {
-            break;
-        }
-    }
-    ScheduleCommlineRX();
 }
 
 AirlineManager::AirlineManager(wf::Config & cfg)
