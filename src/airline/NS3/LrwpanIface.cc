@@ -18,13 +18,14 @@
  * @}
  */
 
+#include <LrwpanIface.h>
+
 #include "commline/commline.h"
+#include <cstdio>
 #include <ns3/single-model-spectrum-channel.h>
 #include <ns3/mobility-module.h>
-#include <ns3/lr-wpan-module.h>
 #include <ns3/spectrum-value.h>
 
-#include <LrwpanIface.h>
 #include <PropagationModel.h>
 #include <common.h>
 #include <Nodeinfo.h>
@@ -42,27 +43,27 @@ static Ptr<LrWpanNetDevice> getDev(ifaceCtx_t *ctx, int id)
     return dev;
 }
 
-/* static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status) */
-/* { */
-/*     switch(status) { */
-/*         case IEEE_802_15_4_SUCCESS: */
-/*             return WF_STATUS_ACK_OK; */
-/*         case IEEE_802_15_4_NO_ACK: */
-/*             return WF_STATUS_NO_ACK; */
-/*         case IEEE_802_15_4_TRANSACTION_OVERFLOW: */
-/*         case IEEE_802_15_4_TRANSACTION_EXPIRED: */
-/*         case IEEE_802_15_4_CHANNEL_ACCESS_FAILURE: */
-/*             return WF_STATUS_ERR;       //can retry later */
-/*         case IEEE_802_15_4_INVALID_GTS: */
-/*         case IEEE_802_15_4_COUNTER_ERROR: */
-/*         case IEEE_802_15_4_FRAME_TOO_LONG: */
-/*         case IEEE_802_15_4_UNAVAILABLE_KEY: */
-/*         case IEEE_802_15_4_UNSUPPORTED_SECURITY: */
-/*         case IEEE_802_15_4_INVALID_PARAMETER: */
-/*         default: */
-/*             return WF_STATUS_FATAL; */
-/*     } */
-/* } */
+static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status)
+{
+    switch(status) {
+        case IEEE_802_15_4_SUCCESS:
+            return WF_STATUS_ACK_OK;
+        case IEEE_802_15_4_NO_ACK:
+            return WF_STATUS_NO_ACK;
+        case IEEE_802_15_4_TRANSACTION_OVERFLOW:
+        case IEEE_802_15_4_TRANSACTION_EXPIRED:
+        case IEEE_802_15_4_CHANNEL_ACCESS_FAILURE:
+            return WF_STATUS_ERR;       //can retry later
+        case IEEE_802_15_4_INVALID_GTS:
+        case IEEE_802_15_4_COUNTER_ERROR:
+        case IEEE_802_15_4_FRAME_TOO_LONG:
+        case IEEE_802_15_4_UNAVAILABLE_KEY:
+        case IEEE_802_15_4_UNSUPPORTED_SECURITY:
+        case IEEE_802_15_4_INVALID_PARAMETER:
+        default:
+            return WF_STATUS_FATAL;
+    }
+}
 
 static uint16_t addr2id(const Mac16Address addr)
 {
@@ -74,10 +75,9 @@ static uint16_t addr2id(const Mac16Address addr)
     return id;
 }
 
-static void DataConfirm (int id, McpsDataConfirmParams params)
+void LrwpanIface::rxConfirm(int id, Ptr<LrWpanNetDevice> dev, McpsDataConfirmParams params)
 {
     /* uint16_t dst_id = addr2id(params.m_addrShortDstAddr); */
-    /* uint8_t status; */
 
     /* if(dst_id == 0xffff) { */
     /*     return; */
@@ -90,12 +90,25 @@ static void DataConfirm (int id, McpsDataConfirmParams params)
          << " pktSize(inc mac-hdr)=" << params.m_pktSz << "\n";
     fflush(stdout);
 #endif
-    /* status = wf_ack_status(params.m_status); */
-    /* SendAckToStackline(id, dst_id, status, params.m_retries+1); */
+    DEFINE_MBUF(mbuf);
+    CINFO << "RX CONFIRM " << params.m_status << "\n";
+    fflush(stdout);
+
+    /* uint8_t status = wf_ack_status(params.m_status); */
+
+    /* mbuf->src_id = src_id; */
+    /* mbuf->dst_id = dst_id; */
+    /* mbuf->info.ack.status = status; */
+    /* if(mbuf->info.ack.status == WF_STATUS_ACK_OK) { */
+    /*     mbuf->info.ack.retries = retries; */
+    /* } */
+    /* mbuf->flags |= MBUF_IS_ACK; */
+    /* mbuf->len = 1; */
+
+    /* SendAckToStackline(id, dst_id, status, params.m_retries + 1); */
 }
 
-static void DataIndication (int id, McpsDataIndicationParams params,
-                            Ptr<Packet> p)
+void LrwpanIface::rxIndication(int id, Ptr<LrWpanNetDevice> dev, McpsDataIndicationParams params, Ptr<Packet> p)
 {
     DEFINE_MBUF(mbuf);
 
@@ -104,10 +117,14 @@ static void DataIndication (int id, McpsDataIndicationParams params,
         return;
     }
 
+    CINFO << "RX INDICATION from: " << addr2id(params.m_srcAddr) << " dst: " << addr2id(params.m_dstAddr) << "\n";
+    fflush(stdout);
+
     mbuf->len           = p->CopyData(mbuf->buf, COMMLINE_MAX_BUF);
     mbuf->src_id        = addr2id(params.m_srcAddr);
     mbuf->dst_id        = addr2id(params.m_dstAddr);
     mbuf->info.sig.lqi  = params.m_mpduLinkQuality;
+
     SendPacketToStackline(id, mbuf);
 }
 
@@ -122,8 +139,20 @@ static void setShortAddress(Ptr<LrWpanNetDevice> dev, uint16_t id)
     dev->GetMac()->SetShortAddress (address);
 };
 
-static int setAllNodesParam(NodeContainer & nodes)
+int LrwpanIface::setup(ifaceCtx_t *ctx)
 {
+    INFO("setting up lrwpan\n");
+    static LrWpanHelper lrWpanHelper;
+    static NetDeviceContainer devContainer = lrWpanHelper.Install(ctx->nodes);
+    lrWpanHelper.AssociateToPan(devContainer, CFG_PANID);
+
+    INFO("Using lr-wpan as PHY\n");
+    string ns3_capfile = CFG("NS3_captureFile");
+    if(!ns3_capfile.empty()) {
+        INFO("NS3 Capture File:%s\n", ns3_capfile.c_str());
+        lrWpanHelper.EnablePcapAll (ns3_capfile, false /*promiscuous*/);
+    }
+
     Ptr<SingleModelSpectrumChannel> channel;
     string loss_model = CFG("lossModel");
     string del_model = CFG("delayModel");
@@ -155,20 +184,18 @@ static int setAllNodesParam(NodeContainer & nodes)
         }
     }
 
-    for (NodeContainer::Iterator i = nodes.Begin (); i != nodes.End (); ++i) { 
+    for (NodeContainer::Iterator i = ctx->nodes.Begin (); i != ctx->nodes.End (); ++i) { 
         Ptr<Node> node = *i; 
         Ptr<LrWpanNetDevice> dev = node->GetDevice(0)->GetObject<LrWpanNetDevice>();
         if (!dev) {
-            CERROR << "Coud not get device\n";
+            CERROR << "Could not get device\n";
             continue;
         }
         dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
 
         /* Set Callbacks */
-        dev->GetMac()->SetMcpsDataConfirmCallback(
-                MakeBoundCallback(DataConfirm, node->GetId()));
-        dev->GetMac()->SetMcpsDataIndicationCallback(
-                MakeBoundCallback(DataIndication, node->GetId()));
+        dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::rxConfirm, node->GetId(), dev));
+        dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, node->GetId(), dev));
         setShortAddress(dev, (uint16_t) node->GetId());
 
         /* if(!macAdd) { */
@@ -183,23 +210,7 @@ static int setAllNodesParam(NodeContainer & nodes)
             dev->SetChannel (channel);
         }
     }
-    return SUCCESS;
-}
 
-int LrwpanIface::setup(ifaceCtx_t *ctx)
-{
-    INFO("setting up lrwpan\n");
-    static LrWpanHelper lrWpanHelper;
-    static NetDeviceContainer devContainer = lrWpanHelper.Install(ctx->nodes);
-    lrWpanHelper.AssociateToPan (devContainer, CFG_PANID);
-
-    INFO("Using lr-wpan as PHY\n");
-    string ns3_capfile = CFG("NS3_captureFile");
-    if(!ns3_capfile.empty()) {
-        INFO("NS3 Capture File:%s\n", ns3_capfile.c_str());
-        lrWpanHelper.EnablePcapAll (ns3_capfile, false /*promiscuous*/);
-    }
-    setAllNodesParam(ctx->nodes);
     return SUCCESS;
 }
 
@@ -316,8 +327,6 @@ int LrwpanIface::sendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
 
 
 LrwpanIface::LrwpanIface() {
-    INFO("LrWPAN Initialized\n");
-    fflush(stdout);
 }
 
 LrwpanIface::~LrwpanIface() {
