@@ -38,22 +38,22 @@ private:
     IFace* iface;
     EventId m_sendEvent;
 
-    void    msgrecvCallback(msg_buf_t *mbuf);
-    int     phyInstall(NodeContainer &nodes);
-    int     startIface();
-    int     startNetwork(wf::Config &cfg);
-    void    nodePos(NodeContainer const &nodes, uint16_t id, double &x, double &y, double &z);
     int     cmd_node_exec(uint16_t id, char *buf, int buflen);
     int     cmd_node_position(uint16_t id, char *buf, int buflen);
     int     cmd_set_node_position(uint16_t id, char *buf, int buflen);
     int     cmd_802154_set_short_addr(uint16_t id, char *buf, int buflen);
     int     cmd_802154_set_ext_addr(uint16_t id, char *buf, int buflen);
     int     cmd_802154_set_panid(uint16_t id, char *buf, int buflen);
-    void    setPositionAllocator(NodeContainer &nodes);
+
+    void    commMsgCallback(msg_buf_t *mbuf);
+    void    commMsgReader(void);
+
+    void    ScheduleCommlineRX(void);
+    void    nodePos(NodeContainer const &nodes, uint16_t id, double &x, double &y, double &z);
     void    setNodeSpecificParam(NodeContainer &nodes);
     int     setAllNodesParam(NodeContainer &nodes);
-    void    msgReader(void);
-    void    ScheduleCommlineRX(void);
+    void    setPositionAllocator(NodeContainer &nodes);
+    int     startNetwork(wf::Config &cfg);
 
 public:
     AirlineManager(wf::Config &cfg);

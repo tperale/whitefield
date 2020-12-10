@@ -97,35 +97,6 @@ int AirlineManager::cmd_node_position(uint16_t id, char *buf, int buflen)
     return n;
 }
 
-void AirlineManager::setPositionAllocator(NodeContainer & nodes)
-{
-    MobilityHelper mobility;
-    mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-    //TODO: In the future this could support different types of mobility models
-
-    if(CFG("topologyType") == "grid") {
-        int gw=stoi(CFG("gridWidth"));
-        CINFO << "Using GridPositionAllocator\n";
-        mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
-            "MinX", DoubleValue(.0),
-            "MinY", DoubleValue(.0),
-            "DeltaX", DoubleValue(stod(CFG("fieldX"))/gw),
-            "DeltaY", DoubleValue(stod(CFG("fieldY"))/gw),
-            "GridWidth", UintegerValue(gw),
-            "LayoutType", StringValue("RowFirst"));
-    } else if(CFG("topologyType") == "randrect") {
-        char x_buf[128], y_buf[128];
-        snprintf(x_buf, sizeof(x_buf), "ns3::UniformRandomVariable[Min=0.0|Max=%s]", CFG("fieldX").c_str());
-        snprintf(y_buf, sizeof(y_buf), "ns3::UniformRandomVariable[Min=0.0|Max=%s]", CFG("fieldY").c_str());
-        CINFO << "Using RandomRectanglePositionAllocator\n";
-        mobility.SetPositionAllocator ("ns3::RandomRectanglePositionAllocator", "X", StringValue(x_buf), "Y", StringValue(y_buf));
-    } else {
-        CERROR << "Unknown topologyType: " << CFG("topologyType") << " in cfg\n";
-        throw FAILURE;
-    }
-    mobility.Install (nodes);
-}
-
 int AirlineManager::cmd_802154_set_ext_addr(uint16_t id, char *buf, int buflen)
 {
     int ret = iface->setParam(&g_ifctx, id, CL_IEEE_802_15_4_EXT_ADDRESS, buf, buflen);
@@ -164,50 +135,7 @@ int AirlineManager::cmd_set_node_position(uint16_t id, char *buf, int buflen)
     return snprintf(buf, buflen, "SUCCESS");
 }
 
-void AirlineManager::nodePos(NodeContainer const & nodes, 
-        uint16_t id, double & x, double & y, double & z)
-{
-    MobilityHelper mob;
-    Ptr<ListPositionAllocator> positionAlloc = 
-    CreateObject<ListPositionAllocator> ();
-    positionAlloc->Add (Vector (x, y, z));
-    mob.SetPositionAllocator (positionAlloc);
-    mob.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-    mob.Install(nodes.Get(id));
-}
-
-void AirlineManager::setNodeSpecificParam(NodeContainer & nodes)
-{
-    uint8_t is_set=0;
-    double x, y, z;
-    wf::Nodeinfo *ni=NULL;
-    string txpower, deftxpower = CFG("txPower");
-
-    for(int i=0;i<(int)nodes.GetN();i++) {
-        ni = WF_config.get_node_info(i);
-        if(!ni) {
-            CERROR << "GetN doesnt match nodes stored in config!!\n";
-            return;
-        }
-        ni->getNodePosition(is_set, x, y, z);
-        if(is_set) {
-            nodePos(nodes, i, x, y, z);
-        }
-        if(ni->getPromisMode()) {
-            iface->setParam(&g_ifctx, i, CL_IEEE_802_15_4_PROMISCUOUS, (void*) NULL, 0);
-        }
-        txpower = ni->getkv("txPower");
-        if (txpower.empty())
-            txpower = deftxpower;
-
-        if (!txpower.empty()) {
-            double dtxpower = stod(txpower);
-            iface->setParam(&g_ifctx, i, CL_IEEE_802_15_4_TX_POWER, (void*) &dtxpower, sizeof(double));
-        }
-    }
-}
-
-void AirlineManager::msgrecvCallback(msg_buf_t *mbuf)
+void AirlineManager::commMsgCallback(msg_buf_t *mbuf)
 {
     NodeContainer const & n = NodeContainer::GetGlobal (); 
     int numNodes = stoi(CFG("numOfNodes"));
@@ -253,13 +181,13 @@ void AirlineManager::msgrecvCallback(msg_buf_t *mbuf)
     }
 }
 
-void AirlineManager::msgReader(void)
+void AirlineManager::commMsgReader(void)
 {
     DEFINE_MBUF(mbuf);
     while(1) {
         cl_recvfrom_q(MTYPE(AIRLINE,CL_MGR_ID), mbuf, sizeof(mbuf_buf), CL_FLAG_NOWAIT);
         if(mbuf->len) {
-            msgrecvCallback(mbuf);
+            commMsgCallback(mbuf);
             usleep(1);
         } else {
             break;
@@ -270,7 +198,78 @@ void AirlineManager::msgReader(void)
 
 void AirlineManager::ScheduleCommlineRX(void)
 {
-    m_sendEvent = Simulator::Schedule (Seconds(0.001), &AirlineManager::msgReader, this);
+    m_sendEvent = Simulator::Schedule (Seconds(0.001), &AirlineManager::commMsgReader, this);
+}
+
+void AirlineManager::nodePos(NodeContainer const & nodes, uint16_t id, double & x, double & y, double & z)
+{
+    MobilityHelper mob;
+    Ptr<ListPositionAllocator> positionAlloc = 
+    CreateObject<ListPositionAllocator> ();
+    positionAlloc->Add (Vector (x, y, z));
+    mob.SetPositionAllocator (positionAlloc);
+    mob.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+    mob.Install(nodes.Get(id));
+}
+
+void AirlineManager::setNodeSpecificParam(NodeContainer & nodes)
+{
+    uint8_t is_set=0;
+    double x, y, z;
+    wf::Nodeinfo *ni=NULL;
+    string txpower, deftxpower = CFG("txPower");
+
+    for(int i=0;i<(int)nodes.GetN();i++) {
+        ni = WF_config.get_node_info(i);
+        if(!ni) {
+            CERROR << "GetN doesnt match nodes stored in config!!\n";
+            return;
+        }
+        ni->getNodePosition(is_set, x, y, z);
+        if(is_set) {
+            nodePos(nodes, i, x, y, z);
+        }
+        if(ni->getPromisMode()) {
+            iface->setParam(&g_ifctx, i, CL_IEEE_802_15_4_PROMISCUOUS, (void*) NULL, 0);
+        }
+        txpower = ni->getkv("txPower");
+        if (txpower.empty())
+            txpower = deftxpower;
+
+        if (!txpower.empty()) {
+            double dtxpower = stod(txpower);
+            iface->setParam(&g_ifctx, i, CL_IEEE_802_15_4_TX_POWER, (void*) &dtxpower, sizeof(double));
+        }
+    }
+}
+
+void AirlineManager::setPositionAllocator(NodeContainer & nodes)
+{
+    MobilityHelper mobility;
+    mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+    //TODO: In the future this could support different types of mobility models
+
+    if(CFG("topologyType") == "grid") {
+        int gw=stoi(CFG("gridWidth"));
+        CINFO << "Using GridPositionAllocator\n";
+        mobility.SetPositionAllocator ("ns3::GridPositionAllocator",
+            "MinX", DoubleValue(.0),
+            "MinY", DoubleValue(.0),
+            "DeltaX", DoubleValue(stod(CFG("fieldX"))/gw),
+            "DeltaY", DoubleValue(stod(CFG("fieldY"))/gw),
+            "GridWidth", UintegerValue(gw),
+            "LayoutType", StringValue("RowFirst"));
+    } else if(CFG("topologyType") == "randrect") {
+        char x_buf[128], y_buf[128];
+        snprintf(x_buf, sizeof(x_buf), "ns3::UniformRandomVariable[Min=0.0|Max=%s]", CFG("fieldX").c_str());
+        snprintf(y_buf, sizeof(y_buf), "ns3::UniformRandomVariable[Min=0.0|Max=%s]", CFG("fieldY").c_str());
+        CINFO << "Using RandomRectanglePositionAllocator\n";
+        mobility.SetPositionAllocator ("ns3::RandomRectanglePositionAllocator", "X", StringValue(x_buf), "Y", StringValue(y_buf));
+    } else {
+        CERROR << "Unknown topologyType: " << CFG("topologyType") << " in cfg\n";
+        throw FAILURE;
+    }
+    mobility.Install (nodes);
 }
 
 int AirlineManager::startNetwork(wf::Config & cfg)
