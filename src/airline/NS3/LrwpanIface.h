@@ -7,8 +7,9 @@
 class LrwpanIface: public IFace {
 protected:
     static void rxIndication(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p);
-    static void rxConfirm(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataConfirmParams params);
+    static void txConfirm(int id, McpsDataRequestParams* req_params, ns3::McpsDataConfirmParams params);
     ns3::Ptr<Node> node;
+    McpsDataRequestParams params;
 public:
     int init();
     int init(ns3::Ptr<ns3::SpectrumChannel> channel);

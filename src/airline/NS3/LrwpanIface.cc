@@ -64,13 +64,15 @@ static uint16_t addr2id(const Mac16Address addr)
     return id;
 }
 
-void LrwpanIface::rxConfirm(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataConfirmParams params)
+void LrwpanIface::txConfirm(int id, McpsDataRequestParams* req_params, ns3::McpsDataConfirmParams params)
 {
-    /* uint16_t dst_id = addr2id(params.m_addrShortDstAddr); */
+    CINFO << "[" << id << "] LrWpanMcpsDataConfirmStatus = " << params.m_status << endl;
+    fflush(stdout);
+    uint16_t dst_id = addr2id(req_params->m_dstAddr);
 
-    /* if(dst_id == 0xffff) { */
-    /*     return; */
-    /* } */
+    if(dst_id == 0xffff) {
+        return;
+    }
 #if 0
     INFO << "Sending ACK status" 
          << " src=" << id << " dst=" << dst_id
@@ -80,25 +82,15 @@ void LrwpanIface::rxConfirm(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::Mcp
     fflush(stdout);
 #endif
     DEFINE_MBUF(mbuf);
-    CINFO << "RX CONFIRM " << params.m_status << "\n";
-    fflush(stdout);
 
-    /* uint8_t status = wf_ack_status(params.m_status); */
+    uint8_t status = wf_ack_status(params.m_status);
 
-    /* mbuf->src_id = src_id; */
-    /* mbuf->dst_id = dst_id; */
-    /* mbuf->info.ack.status = status; */
-    /* if(mbuf->info.ack.status == WF_STATUS_ACK_OK) { */
-    /*     mbuf->info.ack.retries = retries; */
-    /* } */
-    /* mbuf->flags |= MBUF_IS_ACK; */
-    /* mbuf->len = 1; */
-
-    /* SendAckToStackline(GetId(), dst_id, status, params.m_retries + 1); */
+    SendAckToStackline(id, dst_id, status, 1);
 }
 
 void LrwpanIface::rxIndication(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p)
 {
+    CINFO << "[" << id << "] Indication from: " << addr2id(params.m_srcAddr) << " dst: " << addr2id(params.m_dstAddr) << endl;
     DEFINE_MBUF(mbuf);
 
     if (p->GetSize() >= COMMLINE_MAX_BUF) {
@@ -106,7 +98,6 @@ void LrwpanIface::rxIndication(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::
         return;
     }
 
-    CINFO << "RX INDICATION from: " << addr2id(params.m_srcAddr) << " dst: " << addr2id(params.m_dstAddr) << "\n";
     fflush(stdout);
 
     mbuf->len           = p->CopyData(mbuf->buf, COMMLINE_MAX_BUF);
@@ -141,7 +132,7 @@ int LrwpanIface::init()
 
     /* Set Callbacks */
     INFO("[Node %i] Setting up callbacks\n", GetId());
-    dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::rxConfirm, GetId(), dev));
+    dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::txConfirm, GetId(), &params));
     dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, GetId(), dev));
 
     INFO("[Node %i] Setting short address\n", GetId());
@@ -235,7 +226,6 @@ int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
 int LrwpanIface::sendPacket(msg_buf_t *mbuf)
 {
     int numNodes = stoi(CFG("numOfNodes"));
-    McpsDataRequestParams params;
     Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
     Ptr<Packet> p0;
 
