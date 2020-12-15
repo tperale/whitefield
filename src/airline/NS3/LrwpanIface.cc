@@ -130,7 +130,7 @@ static void setShortAddress(ns3::Ptr<ns3::LrWpanNetDevice> dev, uint16_t id)
 
 int LrwpanIface::init()
 {
-    INFO("Initializing the node %i\n", GetId());
+    INFO("[Node %i] Initializing\n", GetId());
     Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
     if (!dev) {
         ERROR("Could not get device\n");
@@ -140,11 +140,11 @@ int LrwpanIface::init()
     dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
 
     /* Set Callbacks */
-    INFO("Setting up callbacks for the node %i\n", GetId());
+    INFO("[Node %i] Setting up callbacks\n", GetId());
     dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::rxConfirm, GetId(), dev));
     dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, GetId(), dev));
 
-    INFO("Setting short address for the node %i\n", GetId());
+    INFO("[Node %i] Setting short address\n", GetId());
     setShortAddress(dev, (uint16_t) GetId());
 
     /* if(!macAdd) { */
@@ -155,13 +155,15 @@ int LrwpanIface::init()
         //headers are transmitted as is to the stackline on reception
         //dev->GetMac()->SetPromiscuousMode(1);
     /* } */
+
+    return SUCCESS;
 }
 
 int LrwpanIface::init(ns3::Ptr<ns3::SpectrumChannel> channel)
 {
     init();
 
-    INFO("Associating channel to the node %i\n", GetId());
+    INFO("[Node %i] Associating channel\n", GetId());
     Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
     dev->SetChannel(channel);
 
@@ -194,7 +196,7 @@ int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
         // TODO HANDLE_CMD seems to always pass the max len (2048) as argument.
         if (len == 8) {
             Mac64Address address((char*) src);
-            INFO("Setting Ext Addr:%s\n", (char*) src);
+            INFO("[Node %i] Setting Ext Addr:%s\n", GetId(), (char*) src);
             dev->GetMac()->SetExtendedAddress (address);
         }
         return SUCCESS;
@@ -206,7 +208,7 @@ int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
             CERROR << "get dev failed for lrwpan\n";
             return FAILURE;
         }
-        INFO("Set promis mode for lr-wpan iface node:%d\n", GetId());
+        INFO("[Node %i] Set promis mode for lr-wpan iface\n", GetId());
         /* dev->GetMac()->SetPromiscuousMode(1); */
         return SUCCESS;
     }
@@ -220,7 +222,7 @@ int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
             CERROR << "set tx power failed for lrwpan\n";
             return FAILURE;
         }
-        INFO("Node:%d txpower:%f\n", GetId(), txpow);
+        INFO("[Node %d] txpower:%f\n", GetId(), txpow);
         dev->GetPhy()->SetTxPowerSpectralDensity(psd);
         return SUCCESS;
     }
