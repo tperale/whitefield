@@ -100,6 +100,7 @@ int cl_get_descriptor(const long mtype);
 typedef enum {
     CL_IEEE_802_15_4_DEST_ADDRESS = 1,
     CL_IEEE_802_15_4_EXT_ADDRESS,
+    CL_IEEE_802_15_4_PROMISCUOUS,
     CL_IEEE_802_15_4_TX_POWER,
 } cl_param_t;
 
