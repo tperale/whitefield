@@ -18,6 +18,8 @@
  * @}
  */
 
+#include "IFaceContainer.h"
+#include "LrwpanContainer.h"
 #include "commline/commline.h"
 #define	_AIRLINEMANAGER_CC_
 
@@ -99,7 +101,7 @@ int AirlineManager::cmd_node_position(uint16_t id, char *buf, int buflen)
 
 int AirlineManager::cmd_802154_set_ext_addr(uint16_t id, char *buf, int buflen)
 {
-    int ret = iface->setParam(&g_ifctx, id, CL_IEEE_802_15_4_EXT_ADDRESS, buf, buflen);
+    int ret = nodes->setParam(id, CL_IEEE_802_15_4_EXT_ADDRESS, buf, buflen);
     if (ret == SUCCESS) {
         return snprintf(buf, buflen, "SUCCESS");
     }
@@ -119,10 +121,10 @@ int AirlineManager::cmd_set_node_position(uint16_t id, char *buf, int buflen)
     }
     ptr = strtok_r(buf, " ", &saveptr);
     if(!ptr) return snprintf(buf, buflen, "invalid loc format! No x pos!");
-    x=stod(ptr);
+    x = stod(ptr);
     ptr = strtok_r(NULL, " ", &saveptr);
     if(!ptr) return snprintf(buf, buflen, "invalid loc format! No y pos!");
-    y=stod(ptr);
+    y = stod(ptr);
     ptr = strtok_r(NULL, " ", &saveptr);
     if(ptr) z = stod(ptr);
 
@@ -170,11 +172,11 @@ void AirlineManager::commMsgCallback(msg_buf_t *mbuf)
 
     switch (mbuf->flags) {
     case MBUF_IS_SEND:
-        iface->sendPacket(&g_ifctx, mbuf->src_id, mbuf);
+        nodes->sendPacket(mbuf->src_id, mbuf);
         wf::Macstats::set_stats(AL_TX, mbuf);
         break;
     case MBUF_IS_PARAM:
-        iface->setParam(&g_ifctx, mbuf->src_id, (cl_param_t) mbuf->param, mbuf->buf, mbuf->len);
+        nodes->setParam(mbuf->src_id, (cl_param_t) mbuf->param, mbuf->buf, mbuf->len);
         break;
     default:
         break;
@@ -201,7 +203,7 @@ void AirlineManager::ScheduleCommlineRX(void)
     m_sendEvent = Simulator::Schedule (Seconds(0.001), &AirlineManager::commMsgReader, this);
 }
 
-void AirlineManager::nodePos(NodeContainer const & nodes, uint16_t id, double & x, double & y, double & z)
+void AirlineManager::nodePos(IFaceContainer* nodes, uint16_t id, double & x, double & y, double & z)
 {
     MobilityHelper mob;
     Ptr<ListPositionAllocator> positionAlloc = 
@@ -209,17 +211,17 @@ void AirlineManager::nodePos(NodeContainer const & nodes, uint16_t id, double & 
     positionAlloc->Add (Vector (x, y, z));
     mob.SetPositionAllocator (positionAlloc);
     mob.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-    mob.Install(nodes.Get(id));
+    mob.Install(nodes->Get(id));
 }
 
-void AirlineManager::setNodeSpecificParam(NodeContainer & nodes)
+void AirlineManager::setNodeSpecificParam(IFaceContainer* nodes)
 {
     uint8_t is_set=0;
     double x, y, z;
     wf::Nodeinfo *ni=NULL;
     string txpower, deftxpower = CFG("txPower");
 
-    for(int i=0;i<(int)nodes.GetN();i++) {
+    for(int i = 0; i < ((int) nodes->GetN()); i++) {
         ni = WF_config.get_node_info(i);
         if(!ni) {
             CERROR << "GetN doesnt match nodes stored in config!!\n";
@@ -230,7 +232,7 @@ void AirlineManager::setNodeSpecificParam(NodeContainer & nodes)
             nodePos(nodes, i, x, y, z);
         }
         if(ni->getPromisMode()) {
-            iface->setParam(&g_ifctx, i, CL_IEEE_802_15_4_PROMISCUOUS, (void*) NULL, 0);
+            nodes->setParam(i, CL_IEEE_802_15_4_PROMISCUOUS, (void*) NULL, 0);
         }
         txpower = ni->getkv("txPower");
         if (txpower.empty())
@@ -238,12 +240,12 @@ void AirlineManager::setNodeSpecificParam(NodeContainer & nodes)
 
         if (!txpower.empty()) {
             double dtxpower = stod(txpower);
-            iface->setParam(&g_ifctx, i, CL_IEEE_802_15_4_TX_POWER, (void*) &dtxpower, sizeof(double));
+            nodes->setParam(i, CL_IEEE_802_15_4_TX_POWER, (void*) &dtxpower, sizeof(double));
         }
     }
 }
 
-void AirlineManager::setPositionAllocator(NodeContainer & nodes)
+void AirlineManager::setPositionAllocator(IFaceContainer* nodes)
 {
     MobilityHelper mobility;
     mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
@@ -269,7 +271,10 @@ void AirlineManager::setPositionAllocator(NodeContainer & nodes)
         CERROR << "Unknown topologyType: " << CFG("topologyType") << " in cfg\n";
         throw FAILURE;
     }
-    mobility.Install (nodes);
+
+    for (NodeContainer::Iterator i = nodes->Begin (); i != nodes->End (); ++i) {
+        mobility.Install(*i);
+    }
 }
 
 int AirlineManager::startNetwork(wf::Config & cfg)
@@ -282,30 +287,30 @@ int AirlineManager::startNetwork(wf::Config & cfg)
 
         wf::Macstats::clear();
 
-        g_ifctx.nodes.Create (cfg.getNumberOfNodes());
+        nodes->Create(cfg.getNumberOfNodes());
         CINFO << "Creating " << cfg.getNumberOfNodes() << " nodes..\n";
         SeedManager::SetSeed(stoi(CFG("randSeed", "0xbabe"), nullptr, 0));
 
-        setPositionAllocator(g_ifctx.nodes);
+        setPositionAllocator(nodes);
 
-        if (iface->setup(&g_ifctx) != SUCCESS) {
+        if (nodes->setup() != SUCCESS) {
             return FAILURE;
         }
 
-        setNodeSpecificParam(g_ifctx.nodes);
+        setNodeSpecificParam(nodes);
 
         AirlineHelper airlineApp;
-        ApplicationContainer apps = airlineApp.Install(g_ifctx.nodes);
+        ApplicationContainer apps = airlineApp.Install(nodes);
         apps.Start(Seconds(0.0));
 
         ScheduleCommlineRX();
-        CINFO << "NS3 Simulator::Run initiated...\n";
+        CINFO << "NS3 Simulator::Run initiated..." << endl;
         fflush(stdout);
         Simulator::Run ();
         pause();
         Simulator::Destroy ();
     } catch (int e) {
-        CERROR << "Configuration failed\n";
+        CERROR << "Configuration failed" << endl;
         return FAILURE;
     }
 
@@ -320,18 +325,17 @@ AirlineManager::AirlineManager(wf::Config & cfg)
     if (!stricmp(phy, "plc")) {
         // TODO PLC
     } else if (!stricmp(phy, "lr-wpan")) {
-        iface = new LrwpanIface();
+        nodes = new LrwpanContainer();
     } else {
-        iface = new LrwpanIface();
-        CERROR << "PHY Does not exist\n";
+        nodes = new LrwpanContainer();
+        INFO("NO PHY parameter\n");
     }
 
     startNetwork(cfg);
-    CINFO << "AirlineManager started" << endl;
+    INFO("AirlineManager started\n");
 }
 
 AirlineManager::~AirlineManager() 
 {
     Simulator::Cancel (m_sendEvent);
-    delete iface;
 }

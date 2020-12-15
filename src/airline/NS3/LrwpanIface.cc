@@ -32,17 +32,6 @@
 #include <Config.h>
 #include <IfaceHandler.h>
 
-static Ptr<LrWpanNetDevice> getDev(ifaceCtx_t *ctx, int id)
-{
-    Ptr<Node> node = ctx->nodes.Get(id); 
-    Ptr<LrWpanNetDevice> dev = NULL;
-
-    if (node) {
-        dev = node->GetDevice(0)->GetObject<LrWpanNetDevice>();
-    }
-    return dev;
-}
-
 static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status)
 {
     switch(status) {
@@ -75,7 +64,7 @@ static uint16_t addr2id(const Mac16Address addr)
     return id;
 }
 
-void LrwpanIface::rxConfirm(int id, Ptr<LrWpanNetDevice> dev, McpsDataConfirmParams params)
+void LrwpanIface::rxConfirm(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataConfirmParams params)
 {
     /* uint16_t dst_id = addr2id(params.m_addrShortDstAddr); */
 
@@ -105,10 +94,10 @@ void LrwpanIface::rxConfirm(int id, Ptr<LrWpanNetDevice> dev, McpsDataConfirmPar
     /* mbuf->flags |= MBUF_IS_ACK; */
     /* mbuf->len = 1; */
 
-    /* SendAckToStackline(id, dst_id, status, params.m_retries + 1); */
+    /* SendAckToStackline(GetId(), dst_id, status, params.m_retries + 1); */
 }
 
-void LrwpanIface::rxIndication(int id, Ptr<LrWpanNetDevice> dev, McpsDataIndicationParams params, Ptr<Packet> p)
+void LrwpanIface::rxIndication(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p)
 {
     DEFINE_MBUF(mbuf);
 
@@ -128,7 +117,7 @@ void LrwpanIface::rxIndication(int id, Ptr<LrWpanNetDevice> dev, McpsDataIndicat
     SendPacketToStackline(id, mbuf);
 }
 
-static void setShortAddress(Ptr<LrWpanNetDevice> dev, uint16_t id)
+static void setShortAddress(ns3::Ptr<ns3::LrWpanNetDevice> dev, uint16_t id)
 {
     Mac16Address address;
     uint8_t idBuf[2];
@@ -136,80 +125,45 @@ static void setShortAddress(Ptr<LrWpanNetDevice> dev, uint16_t id)
     idBuf[0] = (id >> 8) & 0xff;
     idBuf[1] = (id >> 0) & 0xff;
     address.CopyFrom (idBuf);
-    dev->GetMac()->SetShortAddress (address);
+    dev->GetMac()->SetShortAddress(address);
 };
 
-int LrwpanIface::setup(ifaceCtx_t *ctx)
+int LrwpanIface::init()
 {
-    INFO("setting up lrwpan\n");
-    static LrWpanHelper lrWpanHelper;
-    static NetDeviceContainer devContainer = lrWpanHelper.Install(ctx->nodes);
-    lrWpanHelper.AssociateToPan(devContainer, CFG_PANID);
-
-    INFO("Using lr-wpan as PHY\n");
-    string ns3_capfile = CFG("NS3_captureFile");
-    if(!ns3_capfile.empty()) {
-        INFO("NS3 Capture File:%s\n", ns3_capfile.c_str());
-        lrWpanHelper.EnablePcapAll (ns3_capfile, false /*promiscuous*/);
+    INFO("Initializing the node %i\n", GetId());
+    Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
+    if (!dev) {
+        ERROR("Could not get device\n");
+        return FAILURE;
     }
 
-    Ptr<SingleModelSpectrumChannel> channel;
-    string loss_model = CFG("lossModel");
-    string del_model = CFG("delayModel");
-    /* bool macAdd = CFG_INT("macHeaderAdd", 1); */
-    LrWpanSpectrumValueHelper svh;
+    dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
 
-    if (!loss_model.empty() || !del_model.empty()) {
-        channel = CreateObject<SingleModelSpectrumChannel> ();
-        if (!channel) {
-            return FAILURE;
-        }
-        if (!loss_model.empty()) {
-            static Ptr <PropagationLossModel> plm;
-            string loss_model_param = CFG("lossModelParam");
-            plm = getLossModel(loss_model, loss_model_param);
-            if (!plm) {
-                return FAILURE;
-            }
-            channel->AddPropagationLossModel(plm);
-        }
-        if (!del_model.empty()) {
-            static Ptr <PropagationDelayModel> pdm;
-            string del_model_param = CFG("delayModelParam");
-            pdm = getDelayModel(del_model, del_model_param);
-            if (!pdm) {
-                return FAILURE;
-            }
-            channel->SetPropagationDelayModel(pdm);
-        }
-    }
+    /* Set Callbacks */
+    INFO("Setting up callbacks for the node %i\n", GetId());
+    dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::rxConfirm, GetId(), dev));
+    dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, GetId(), dev));
 
-    for (NodeContainer::Iterator i = ctx->nodes.Begin (); i != ctx->nodes.End (); ++i) { 
-        Ptr<Node> node = *i; 
-        Ptr<LrWpanNetDevice> dev = node->GetDevice(0)->GetObject<LrWpanNetDevice>();
-        if (!dev) {
-            CERROR << "Could not get device\n";
-            continue;
-        }
-        dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
+    INFO("Setting short address for the node %i\n", GetId());
+    setShortAddress(dev, (uint16_t) GetId());
 
-        /* Set Callbacks */
-        dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::rxConfirm, node->GetId(), dev));
-        dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, node->GetId(), dev));
-        setShortAddress(dev, (uint16_t) node->GetId());
+    /* if(!macAdd) { */
+        /* dev->GetMac()->SetMacHeaderAdd(macAdd); */
 
-        /* if(!macAdd) { */
-            /* dev->GetMac()->SetMacHeaderAdd(macAdd); */
+        //In case where stackline itself add mac header, the airline needs
+        //to be set in promiscuous mode so that all the packets with
+        //headers are transmitted as is to the stackline on reception
+        //dev->GetMac()->SetPromiscuousMode(1);
+    /* } */
+}
 
-            //In case where stackline itself add mac header, the airline needs
-            //to be set in promiscuous mode so that all the packets with
-            //headers are transmitted as is to the stackline on reception
-            //dev->GetMac()->SetPromiscuousMode(1);
-        /* } */
-        if (!loss_model.empty() || !del_model.empty()) {
-            dev->SetChannel (channel);
-        }
-    }
+int LrwpanIface::init(ns3::Ptr<ns3::SpectrumChannel> channel)
+{
+    init();
+
+    INFO("Associating channel to the node %i\n", GetId());
+    Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
+    dev->SetChannel(channel);
 
     return SUCCESS;
 }
@@ -224,7 +178,7 @@ static Mac16Address id2addr(const uint16_t id)
     return mac;
 };
 
-int LrwpanIface::setParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, size_t len)
+int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
 {
     switch (param) {
     case CL_IEEE_802_15_4_DEST_ADDRESS:
@@ -232,7 +186,7 @@ int LrwpanIface::setParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, 
         // with their own set of parameter
         break;
     case CL_IEEE_802_15_4_EXT_ADDRESS: {
-        Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
+        Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
         if (!dev) {
             CERROR << "get dev failed for lrwpan\n";
             return FAILURE;
@@ -246,18 +200,18 @@ int LrwpanIface::setParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, 
         return SUCCESS;
     }
     case CL_IEEE_802_15_4_PROMISCUOUS: {
-        Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
+        Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
 
         if (!dev) {
             CERROR << "get dev failed for lrwpan\n";
             return FAILURE;
         }
-        INFO("Set promis mode for lr-wpan iface node:%d\n", id);
+        INFO("Set promis mode for lr-wpan iface node:%d\n", GetId());
         /* dev->GetMac()->SetPromiscuousMode(1); */
         return SUCCESS;
     }
     case CL_IEEE_802_15_4_TX_POWER: {
-        Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
+        Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
         LrWpanSpectrumValueHelper svh;
         double txpow = *((double*) src);
         Ptr<SpectrumValue> psd = svh.CreateTxPowerSpectralDensity (txpow, 11);
@@ -266,7 +220,7 @@ int LrwpanIface::setParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, 
             CERROR << "set tx power failed for lrwpan\n";
             return FAILURE;
         }
-        INFO("Node:%d txpower:%f\n", id, txpow);
+        INFO("Node:%d txpower:%f\n", GetId(), txpow);
         dev->GetPhy()->SetTxPowerSpectralDensity(psd);
         return SUCCESS;
     }
@@ -276,11 +230,11 @@ int LrwpanIface::setParam(ifaceCtx_t *ctx, int id, cl_param_t param, void* src, 
     return SUCCESS;
 }
 
-int LrwpanIface::sendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
+int LrwpanIface::sendPacket(msg_buf_t *mbuf)
 {
     int numNodes = stoi(CFG("numOfNodes"));
     McpsDataRequestParams params;
-    Ptr<LrWpanNetDevice> dev = getDev(ctx, id);
+    Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
     Ptr<Packet> p0;
 
     if (!dev) {
@@ -292,6 +246,8 @@ int LrwpanIface::sendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
         CERROR << "MBUF CMD not handled in Airline... No need!" << endl;
         return FAILURE;
     }
+
+    INFO("[Node %i] Sending %s\n", GetId(), mbuf->buf);
 
     p0 = Create<Packet> (mbuf->buf, (uint32_t)mbuf->len);
     params.m_srcAddrMode = SHORT_ADDR;
@@ -314,7 +270,7 @@ int LrwpanIface::sendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
     }
 #if 0
     INFO << "TX DATA: "
-         << " src_id=" << id
+         << " src_id=" << GetId()
          << " dst_id=" << params.m_dstAddr
          << " pktlen=" << (int)mbuf->len
          << "\n";
@@ -323,11 +279,4 @@ int LrwpanIface::sendPacket(ifaceCtx_t *ctx, int id, msg_buf_t *mbuf)
 
     Simulator::ScheduleNow(&LrWpanMac::McpsDataRequest, dev->GetMac(), params, p0);
     return SUCCESS;
-}
-
-
-LrwpanIface::LrwpanIface() {
-}
-
-LrwpanIface::~LrwpanIface() {
 }

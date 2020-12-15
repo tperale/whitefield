@@ -39,13 +39,13 @@ public:
 
 private:
     /**
-			 * \brief Start the application.
-			 */
+     * \brief Start the application.
+     */
     virtual void StartApplication();
 
     /**
-			 * \brief Stop the application.
-			 */
+     * \brief Stop the application.
+     */
     virtual void StopApplication();
     uint32_t     m_xyz; //delete in the future...
 };
@@ -58,14 +58,14 @@ public:
     };
 
     /**
-			 * \brief Install the application in Nodes.
-			 * \param c list of Nodes
-			 * \return application container
-			 */
-    ApplicationContainer Install(NodeContainer c)
+     * \brief Install the application in Nodes.
+     * \param c list of Nodes
+     * \return application container
+     */
+    ApplicationContainer Install(NodeContainer* c)
     {
         ApplicationContainer apps;
-        for (NodeContainer::Iterator i = c.Begin(); i != c.End(); ++i) {
+        for (NodeContainer::Iterator i = c->Begin(); i != c->End(); ++i) {
             Ptr<Node>    node   = *i;
             Ptr<Airline> client = m_factory.Create<Airline>();
             node->AddApplication(client);
@@ -76,10 +76,10 @@ public:
 
 private:
     /**
-			 * \brief An object factory.
-			 */
+     * \brief An object factory.
+     */
     ObjectFactory m_factory;
 };
 } // namespace ns3
 
-#endif //	_AIRLINE_H_
+#endif //   _AIRLINE_H_

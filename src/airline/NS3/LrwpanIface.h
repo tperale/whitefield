@@ -6,15 +6,16 @@
 
 class LrwpanIface: public IFace {
 protected:
-    static void rxIndication(int id, Ptr<LrWpanNetDevice> dev, McpsDataIndicationParams params, Ptr<Packet> p);
-    static void rxConfirm(int id, Ptr<LrWpanNetDevice> dev, McpsDataConfirmParams params);
+    static void rxIndication(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p);
+    static void rxConfirm(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataConfirmParams params);
+    ns3::Ptr<Node> node;
 public:
-    int setup(ifaceCtx_t* ctx);
-    int setParam(ifaceCtx_t* ctx, int id, cl_param_t param, void* src, size_t len);
-    int sendPacket(ifaceCtx_t* ctx, int id, msg_buf_t* mbuf);
+    int init();
+    int init(ns3::Ptr<ns3::SpectrumChannel> channel);
+    int setParam(cl_param_t param, void* src, size_t len);
+    int sendPacket(msg_buf_t* mbuf);
 
-     LrwpanIface();
-    ~LrwpanIface();
+    LrwpanIface() : IFace() {};
 };
 
 #endif /* ifndef _LRWPANIFACE_H_ */

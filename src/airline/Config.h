@@ -21,6 +21,7 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
+#include "Nodeinfo.h"
 #include <common.h>
 
 namespace wf {

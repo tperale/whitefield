@@ -21,14 +21,16 @@
 #ifndef _IFACEHANDLER_H_
 #define _IFACEHANDLER_H_
 
+#include "ns3/spectrum-phy.h"
 #include <ns3/ptr.h>
 #include <ns3/net-device.h>
 #include <ns3/node-container.h>
+#include <ns3/node.h>
 
-#if PLC
-#include <ns3/plc-node.h>
-typedef std::vector<ns3::Ptr<ns3::PLC_Node> > PLC_NodeList;
-#endif
+/* #if PLC */
+/* #include <ns3/plc-node.h> */
+/* typedef std::vector<ns3::Ptr<ns3::PLC_Node> > PLC_NodeList; */
+/* #endif */
 
 extern "C" {
 #include "commline/commline.h"
@@ -36,20 +38,14 @@ extern "C" {
 
 using namespace ns3;
 
-typedef struct _iface_ctx_ {
-    NodeContainer nodes;
-#if PLC
-    PLC_NodeList plcNodes;
-#endif
-} ifaceCtx_t;
-
-class IFace {
+class IFace: public ns3::Node {
 public:
-    virtual int setup(ifaceCtx_t* ctx) = 0;
-    virtual int setParam(ifaceCtx_t* ctx, int id, cl_param_t param, void* src, size_t len) = 0;
-    virtual int sendPacket(ifaceCtx_t* ctx, int id, msg_buf_t* mbuf) = 0;
-    /* virtual int setRxCallback(ifaceCtx_t* ctx) = 0; */
-    virtual ~IFace() {};
+    virtual int init() { return 0; };
+    virtual int init(ns3::Ptr<ns3::SpectrumChannel> channel) {return 0;};
+    virtual int setParam(cl_param_t param, void* src, size_t len) {return 0;};
+    virtual int sendPacket(msg_buf_t* mbuf) {return 0;};
+
+    /* IFace() : Node() {}; */
 };
 
 #endif // _IFACEHANDLER_H_
