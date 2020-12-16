@@ -80,4 +80,3 @@ allclean: $(STACKLINE_DEPCLEAN)
 
 tests:
 	regression/regress.sh regression/full.set
-

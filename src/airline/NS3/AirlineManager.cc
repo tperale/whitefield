@@ -19,7 +19,7 @@
  */
 
 #include "IFaceContainer.h"
-#include "LrwpanContainer.h"
+#include "lrwpan/LrwpanContainer.h"
 #include "commline/commline.h"
 #define	_AIRLINEMANAGER_CC_
 
@@ -36,7 +36,6 @@
 #include "Airline.h"
 #include "Command.h"
 #include "mac_stats.h"
-#include "LrwpanIface.h"
 
 int getNodeConfigVal(int id, char *key, char *val, int vallen)
 {

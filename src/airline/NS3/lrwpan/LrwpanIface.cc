@@ -18,7 +18,7 @@
  * @}
  */
 
-#include <LrwpanIface.h>
+#include "lrwpan/LrwpanIface.h"
 
 #include "commline/commline.h"
 #include <cstdio>

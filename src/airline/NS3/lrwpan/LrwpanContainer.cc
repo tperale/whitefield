@@ -1,5 +1,5 @@
-#include "LrwpanContainer.h"
-#include "LrwpanIface.h"
+#include "lrwpan/LrwpanContainer.h"
+#include "lrwpan/LrwpanIface.h"
 #include "PropagationModel.h"
 #include "common.h"
 #include "Config.h"

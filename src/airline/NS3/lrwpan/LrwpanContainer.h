@@ -2,7 +2,7 @@
 #define LRPWANCONTAINER_H_
 
 #include "IFaceContainer.h"
-#include "LrwpanIface.h"
+#include "lrwpan/LrwpanIface.h"
 #include <ns3/single-model-spectrum-channel.h>
 
 class LrwpanContainer: public IFaceContainer {

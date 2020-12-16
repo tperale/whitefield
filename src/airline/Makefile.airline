@@ -20,6 +20,7 @@ TARGET=$(BINDIR)/whitefield
 # Should be equivalent to your list of C files, if you don't build selectively
 SRCS=$(wildcard $(SRC)/*.cc)
 SRCS+=$(wildcard $(SRC)/$(AIRLINE)/*.cc)
+SRCS+=$(wildcard $(SRC)/$(AIRLINE)/lrwpan/*.cc)
 OBJS=$(addprefix $(BINDIR)/,$(SRCS:.cc=.o))
 #$(info $(OBJS))
 CFLAGS+=-I$(SRC)/$(AIRLINE)
@@ -42,6 +43,8 @@ $(BINDIR)/%.o: %.cc $(GLOBAL_HDR)
 
 $(BINDIR)/$(SRC):
 	@mkdir -p $(BINDIR)/$(SRC)/$(AIRLINE)
+	@mkdir -p $(BINDIR)/$(SRC)/$(AIRLINE)/lrwpanphy
+	@mkdir -p $(BINDIR)/$(SRC)/$(AIRLINE)/lrwpan
 
 clean:
 	@rm -rf $(BINDIR)
