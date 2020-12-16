@@ -20,6 +20,7 @@ TARGET=$(BINDIR)/whitefield
 # Should be equivalent to your list of C files, if you don't build selectively
 SRCS=$(wildcard $(SRC)/*.cc)
 SRCS+=$(wildcard $(SRC)/$(AIRLINE)/*.cc)
+SRCS+=$(wildcard $(SRC)/$(AIRLINE)/lrwpanphy/*.cc)
 SRCS+=$(wildcard $(SRC)/$(AIRLINE)/lrwpan/*.cc)
 OBJS=$(addprefix $(BINDIR)/,$(SRCS:.cc=.o))
 #$(info $(OBJS))
