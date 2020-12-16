@@ -5,34 +5,13 @@
 #include "Config.h"
 #include <ns3/lr-wpan-module.h>
 
-int LrwpanContainer::setup() 
+void LrwpanContainer::Create (uint32_t n)
 {
-    INFO("setting up lrwpan\n");
+    INFO("Creating the LrWpan Nodes\n");
     static ns3::LrWpanHelper lrWpanHelper;
-    NetDeviceContainer devContainer;
-    for (NodeContainer::Iterator i = this->Begin (); i != this->End (); i++)
-    {
-        Ptr<Node> node = *i;
-
-        Ptr<LrWpanNetDevice> netDevice = CreateObject<LrWpanNetDevice> ();
-        netDevice->SetChannel (lrWpanHelper.GetChannel());
-        node->AddDevice(netDevice);
-        netDevice->SetNode(node);
-        devContainer.Add(netDevice);
-    }
-
-
-    lrWpanHelper.AssociateToPan(devContainer, CFG_PANID);
-
-    INFO("Using lr-wpan as PHY\n");
-    string ns3_capfile = CFG("NS3_captureFile");
-    if(!ns3_capfile.empty()) {
-        INFO("NS3 Capture File:%s\n", ns3_capfile.c_str());
-        lrWpanHelper.EnablePcapAll (ns3_capfile, false /*promiscuous*/);
-    }
 
     /* bool macAdd = CFG_INT("macHeaderAdd", 1); */
-    ns3::LrWpanSpectrumValueHelper svh;
+    /* ns3::LrWpanSpectrumValueHelper svh; */
     string loss_model = CFG("lossModel");
     string del_model = CFG("delayModel");
 
@@ -41,14 +20,14 @@ int LrwpanContainer::setup()
         channel = ns3::CreateObject<ns3::SingleModelSpectrumChannel> ();
         if (!channel) {
             ERROR("Failed at channel creation\n");
-            return FAILURE;
+            return;
         }
         if (!loss_model.empty()) {
             string loss_model_param = CFG("lossModelParam");
             plm = getLossModel(loss_model, loss_model_param);
             if (!plm) {
                 ERROR("Failed to get loss model\n");
-                return FAILURE;
+                return;
             }
             channel->AddPropagationLossModel(plm);
         }
@@ -58,24 +37,34 @@ int LrwpanContainer::setup()
             pdm = getDelayModel(del_model, del_model_param);
             if (!pdm) {
                 ERROR("Failed to get delay model\n");
-                return FAILURE;
+                return;
             }
             channel->SetPropagationDelayModel(pdm);
         }
+    } else {
+        channel = lrWpanHelper.GetChannel();
     }
 
+    NetDeviceContainer devContainer;
+    for (uint32_t i = 0; i < n; i++) {
+        INFO("Creating node %i\n", i);
+        Ptr<LrwpanIface> iface = ns3::CreateObject<LrwpanIface>(channel);
+        Add(iface);
+        devContainer.Add(iface->GetDevice(0)->GetObject<LrWpanNetDevice>());
+    }
+
+    lrWpanHelper.AssociateToPan(devContainer, CFG_PANID);
+
+    INFO("Using lr-wpan as PHY\n");
+    string ns3_capfile = CFG("NS3_captureFile");
+    if(!ns3_capfile.empty()) {
+        INFO("NS3 Capture File:%s\n", ns3_capfile.c_str());
+        lrWpanHelper.EnablePcapAll (ns3_capfile, false /*promiscuous*/);
+    }
+}
+
+int LrwpanContainer::setup() 
+{
     INFO("Initialization of the nodes\n");
-    for (NodeContainer::Iterator i = this->Begin (); i != this->End (); i++)
-    {
-        Ptr<Node> node = *i;
-        INFO("Initialization of node %i\n", node->GetId());
-        Ptr<LrwpanIface> iface = node->GetObject<LrwpanIface>();
-        if (channel) {
-            iface->init(channel);
-        } else {
-            iface->init();
-        }
-    }
-
     return SUCCESS;
 }

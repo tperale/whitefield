@@ -40,8 +40,6 @@ using namespace ns3;
 
 class IFace: public ns3::Node {
 public:
-    virtual int init() { return 0; };
-    virtual int init(ns3::Ptr<ns3::SpectrumChannel> channel) {return 0;};
     virtual int setParam(cl_param_t param, void* src, size_t len) {return 0;};
     virtual int sendPacket(msg_buf_t* mbuf) {return 0;};
 

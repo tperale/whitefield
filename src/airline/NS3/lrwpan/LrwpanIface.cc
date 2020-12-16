@@ -31,6 +31,7 @@
 #include <Nodeinfo.h>
 #include <Config.h>
 #include <IfaceHandler.h>
+#include <stdint.h>
 
 static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status)
 {
@@ -54,20 +55,41 @@ static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status)
     }
 }
 
+static void setShortAddress(ns3::Ptr<ns3::LrWpanNetDevice> dev, uint16_t id)
+{
+    Mac16Address address;
+    uint8_t idBuf[2];
+
+    idBuf[0] = (id >> 8) & 0xff;
+    idBuf[1] = (id >> 0) & 0xff;
+    address.CopyFrom (idBuf);
+    dev->GetMac()->SetShortAddress(address);
+};
+
+
 static uint16_t addr2id(const Mac16Address addr)
 {
-    uint16_t id=0;
-    uint8_t str[2], *ptr=(uint8_t *)&id;
+    uint16_t id = 0;
+    uint8_t str[2], *ptr = (uint8_t *) &id;
     addr.CopyTo(str);
     ptr[1] = str[0];
     ptr[0] = str[1];
     return id;
 }
 
-void LrwpanIface::txConfirm(int id, McpsDataRequestParams* req_params, uint8_t* retries, ns3::McpsDataConfirmParams params)
+static Mac16Address id2addr(const uint16_t id)
 {
-    CINFO << "[" << id << "] LrWpanMcpsDataConfirmStatus = " << params.m_status << " with " << ((int) *retries) << " retries" << endl;
-    fflush(stdout);
+    Mac16Address mac;
+    uint8_t idstr[2], *ptr=(uint8_t*)&id;
+    idstr[1] = ptr[0];
+    idstr[0] = ptr[1];
+    mac.CopyFrom(idstr);
+    return mac;
+};
+
+void LrwpanIface::txConfirm(uint16_t id, McpsDataRequestParams* req_params, uint8_t* retries, ns3::McpsDataConfirmParams params)
+{
+    INFO("[Node %i] Confirm: Status %i packet to %i with %i retries\n", id, params.m_status, addr2id(req_params->m_dstAddr), *retries);
     uint16_t dst_id = addr2id(req_params->m_dstAddr);
 
     if(dst_id == 0xffff) {
@@ -86,12 +108,13 @@ void LrwpanIface::txConfirm(int id, McpsDataRequestParams* req_params, uint8_t* 
     *retries = *retries + 1;
     uint8_t status = wf_ack_status(params.m_status);
 
-    SendAckToStackline(id, dst_id, status, 1);
+    SendAckToStackline(id, dst_id, status, *retries);
 }
 
-void LrwpanIface::rxIndication(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p)
+void LrwpanIface::rxIndication(uint16_t id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p)
 {
-    CINFO << "[" << id << "] Indication from: " << addr2id(params.m_srcAddr) << " dst: " << addr2id(params.m_dstAddr) << endl;
+    CINFO << params.m_srcAddr << endl;
+    INFO("[Node %i] Indication from %i to dst %i\n", id, addr2id(params.m_srcAddr), addr2id(params.m_dstAddr));
     DEFINE_MBUF(mbuf);
 
     if (p->GetSize() >= COMMLINE_MAX_BUF) {
@@ -106,71 +129,8 @@ void LrwpanIface::rxIndication(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::
     mbuf->dst_id        = addr2id(params.m_dstAddr);
     mbuf->info.sig.lqi  = params.m_mpduLinkQuality;
 
-    SendPacketToStackline(id, mbuf);
+    SendPacketToStackline((uint16_t) id, mbuf);
 }
-
-static void setShortAddress(ns3::Ptr<ns3::LrWpanNetDevice> dev, uint16_t id)
-{
-    Mac16Address address;
-    uint8_t idBuf[2];
-
-    idBuf[0] = (id >> 8) & 0xff;
-    idBuf[1] = (id >> 0) & 0xff;
-    address.CopyFrom (idBuf);
-    dev->GetMac()->SetShortAddress(address);
-};
-
-int LrwpanIface::init()
-{
-    INFO("[Node %i] Initializing\n", GetId());
-    Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
-    if (!dev) {
-        ERROR("Could not get device\n");
-        return FAILURE;
-    }
-
-    dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
-
-    /* Set Callbacks */
-    INFO("[Node %i] Setting up callbacks\n", GetId());
-    dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::txConfirm, GetId(), &params, &tx_retries));
-    dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, GetId(), dev));
-
-    INFO("[Node %i] Setting short address\n", GetId());
-    setShortAddress(dev, (uint16_t) GetId());
-
-    /* if(!macAdd) { */
-        /* dev->GetMac()->SetMacHeaderAdd(macAdd); */
-
-        //In case where stackline itself add mac header, the airline needs
-        //to be set in promiscuous mode so that all the packets with
-        //headers are transmitted as is to the stackline on reception
-        //dev->GetMac()->SetPromiscuousMode(1);
-    /* } */
-
-    return SUCCESS;
-}
-
-int LrwpanIface::init(ns3::Ptr<ns3::SpectrumChannel> channel)
-{
-    init();
-
-    INFO("[Node %i] Associating channel\n", GetId());
-    Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
-    dev->SetChannel(channel);
-
-    return SUCCESS;
-}
-
-static Mac16Address id2addr(const uint16_t id)
-{
-    Mac16Address mac;
-    uint8_t idstr[2], *ptr=(uint8_t*)&id;
-    idstr[1] = ptr[0];
-    idstr[0] = ptr[1];
-    mac.CopyFrom(idstr);
-    return mac;
-};
 
 int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
 {
@@ -240,12 +200,13 @@ int LrwpanIface::sendPacket(msg_buf_t *mbuf)
         return FAILURE;
     }
 
-    INFO("[Node %i] Sending %s\n", GetId(), mbuf->buf);
+    INFO("[Node %i] Sending from %i to %i\n", GetId(), mbuf->src_id, mbuf->dst_id);
 
     p0 = Create<Packet> (mbuf->buf, (uint32_t)mbuf->len);
     params.m_srcAddrMode = SHORT_ADDR;
     params.m_dstAddrMode = SHORT_ADDR;
     params.m_dstPanId    = CFG_PANID;
+    params.m_dstAddr     = id2addr(mbuf->dst_id);
     params.m_dstAddr     = id2addr(mbuf->dst_id);
     params.m_msduHandle  = 0;
     params.m_txOptions   = TX_OPTION_NONE;
@@ -273,4 +234,38 @@ int LrwpanIface::sendPacket(msg_buf_t *mbuf)
 
     Simulator::ScheduleNow(&LrWpanMac::McpsDataRequest, dev->GetMac(), params, p0);
     return SUCCESS;
+}
+
+LrwpanIface::LrwpanIface(Ptr<SpectrumChannel> chan) : IFace(), channel{chan} {
+    Ptr<LrWpanNetDevice> lrwpan_dev = CreateObject<LrWpanNetDevice>();
+    AddDevice(lrwpan_dev);
+    dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
+    dev->SetChannel(channel);
+    /* dev->SetAddress(id2addr(GetId())); */
+
+    INFO("[Node %i] Initializing\n", GetId());
+    if (!dev) {
+        ERROR("Could not get device\n");
+        return;
+    }
+
+    dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
+
+    /* Set Callbacks */
+    INFO("[Node %i] Setting up callbacks\n", GetId());
+    dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::txConfirm, GetId(), &params, &tx_retries));
+    dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, GetId(), dev));
+
+    INFO("[Node %i] Setting short address\n", GetId());
+    setShortAddress(dev, (uint16_t) GetId());
+
+    /* bool macAdd = CFG_INT("macHeaderAdd", 1); */
+    /* if(!macAdd) { */
+        /* dev->GetMac()->SetMacHeaderAdd(macAdd); */
+
+        //In case where stackline itself add mac header, the airline needs
+        //to be set in promiscuous mode so that all the packets with
+        //headers are transmitted as is to the stackline on reception
+        //dev->GetMac()->SetPromiscuousMode(1);
+    /* } */
 }

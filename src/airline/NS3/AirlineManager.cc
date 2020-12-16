@@ -20,6 +20,7 @@
 
 #include "IFaceContainer.h"
 #include "lrwpan/LrwpanContainer.h"
+#include "lrwpanphy/LrwpanPhyContainer.h"
 #include "commline/commline.h"
 #define	_AIRLINEMANAGER_CC_
 
@@ -292,9 +293,9 @@ int AirlineManager::startNetwork(wf::Config & cfg)
 
         setPositionAllocator(nodes);
 
-        if (nodes->setup() != SUCCESS) {
-            return FAILURE;
-        }
+        /* if (nodes->setup() != SUCCESS) { */
+        /*     return FAILURE; */
+        /* } */
 
         setNodeSpecificParam(nodes);
 
@@ -323,6 +324,8 @@ AirlineManager::AirlineManager(wf::Config & cfg)
     string phy = CFG("PHY");
     if (!stricmp(phy, "plc")) {
         // TODO PLC
+    } else if (!stricmp(phy, "lr-wpan-phy")) {
+        nodes = new LrwpanPhyContainer();
     } else if (!stricmp(phy, "lr-wpan")) {
         nodes = new LrwpanContainer();
     } else {

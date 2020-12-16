@@ -11,15 +11,7 @@ private:
     ns3::Ptr<ns3::PropagationLossModel> plm;
 
 public:
-    void Create (uint32_t n)
-    {
-        INFO("Creating the LrWpan Nodes\n");
-        for (uint32_t i = 0; i < n; i++) {
-            Ptr<LrwpanIface> iface = ns3::CreateObject<LrwpanIface> ();
-            Add(iface);
-        }
-    }
-
+    void Create (uint32_t n);
     int setup();
 
     LrwpanContainer() : IFaceContainer() {};
