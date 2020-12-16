@@ -87,7 +87,7 @@ string getMapCfg(map<string, string, ci_less> & m, string key)
 }
 
 void SendAckToStackline(uint16_t src_id, uint16_t dst_id,
-        uint8_t status, int retries)
+        uint8_t status, uint8_t retries)
 {
     DEFINE_MBUF(mbuf);
 

@@ -64,9 +64,9 @@ static uint16_t addr2id(const Mac16Address addr)
     return id;
 }
 
-void LrwpanIface::txConfirm(int id, McpsDataRequestParams* req_params, ns3::McpsDataConfirmParams params)
+void LrwpanIface::txConfirm(int id, McpsDataRequestParams* req_params, uint8_t* retries, ns3::McpsDataConfirmParams params)
 {
-    CINFO << "[" << id << "] LrWpanMcpsDataConfirmStatus = " << params.m_status << endl;
+    CINFO << "[" << id << "] LrWpanMcpsDataConfirmStatus = " << params.m_status << " with " << ((int) *retries) << " retries" << endl;
     fflush(stdout);
     uint16_t dst_id = addr2id(req_params->m_dstAddr);
 
@@ -83,6 +83,7 @@ void LrwpanIface::txConfirm(int id, McpsDataRequestParams* req_params, ns3::Mcps
 #endif
     DEFINE_MBUF(mbuf);
 
+    *retries = *retries + 1;
     uint8_t status = wf_ack_status(params.m_status);
 
     SendAckToStackline(id, dst_id, status, 1);
@@ -132,7 +133,7 @@ int LrwpanIface::init()
 
     /* Set Callbacks */
     INFO("[Node %i] Setting up callbacks\n", GetId());
-    dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::txConfirm, GetId(), &params));
+    dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::txConfirm, GetId(), &params, &tx_retries));
     dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, GetId(), dev));
 
     INFO("[Node %i] Setting short address\n", GetId());
@@ -251,6 +252,7 @@ int LrwpanIface::sendPacket(msg_buf_t *mbuf)
     if(mbuf->dst_id != 0xffff) {
         params.m_txOptions = TX_OPTION_ACK;
     }
+    tx_retries = 0;
 
     // If the src node is in promiscuous mode then disable L2-ACK 
     if(IN_RANGE(mbuf->src_id, 0, numNodes)) {

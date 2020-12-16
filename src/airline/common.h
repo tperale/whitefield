@@ -84,7 +84,7 @@ static inline int stricmp(string s1, string s2)
 }
 
 void SendAckToStackline(uint16_t src_id, uint16_t dst_id,
-                        uint8_t status, int retries);
+                        uint8_t status, uint8_t retries);
 void SendPacketToStackline(uint16_t id, msg_buf_t *mbuf);
 
 #endif //_COMMON_H_
