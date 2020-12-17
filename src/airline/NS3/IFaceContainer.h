@@ -1,6 +1,11 @@
 #ifndef IFACECONTAINER_H_
 #define IFACECONTAINER_H_ 
 #include "IfaceHandler.h"
+#include "common.h"
+#include "ns3/lr-wpan-net-device.h"
+#include <cstdint>
+#include <cstdio>
+#include <stdint.h>
 #include <vector>
 #include <ns3/node-container.h>
 #include <ns3/node.h>
@@ -21,12 +26,12 @@ public:
      */
     virtual int setup() = 0;
 
-    int setParam(int id, cl_param_t param, void* src, size_t len) {
+    int setParam(uint16_t id, cl_param_t param, void* src, size_t len) {
         Ptr<IFace> node = Get(id)->GetObject<IFace>();
         return node->setParam(param, src, len);
     }
 
-    int sendPacket(int id, msg_buf_t* mbuf) {
+    int sendPacket(uint16_t id, msg_buf_t* mbuf) {
         Ptr<IFace> node = Get(id)->GetObject<IFace>();
         return node->sendPacket(mbuf);
     }
