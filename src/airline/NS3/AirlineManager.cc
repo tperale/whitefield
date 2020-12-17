@@ -22,6 +22,7 @@
 #include "lrwpan/LrwpanContainer.h"
 #include "lrwpanphy/LrwpanPhyContainer.h"
 #include "commline/commline.h"
+#include <stdint.h>
 #define	_AIRLINEMANAGER_CC_
 
 #include <map>
@@ -235,12 +236,13 @@ void AirlineManager::setNodeSpecificParam(IFaceContainer* nodes)
             nodes->setParam(i, CL_IEEE_802_15_4_PROMISCUOUS, (void*) NULL, 0);
         }
         txpower = ni->getkv("txPower");
-        if (txpower.empty())
+        if (txpower.empty()) {
             txpower = deftxpower;
+        }
 
         if (!txpower.empty()) {
             double dtxpower = stod(txpower);
-            nodes->setParam(i, CL_IEEE_802_15_4_TX_POWER, (void*) &dtxpower, sizeof(double));
+            nodes->setParam((uint16_t) i, CL_IEEE_802_15_4_TX_POWER, (void*) &dtxpower, sizeof(double));
         }
     }
 }
@@ -287,15 +289,11 @@ int AirlineManager::startNetwork(wf::Config & cfg)
 
         wf::Macstats::clear();
 
+        INFO("Creating %i nodes ...\n", cfg.getNumberOfNodes());
         nodes->Create(cfg.getNumberOfNodes());
-        CINFO << "Creating " << cfg.getNumberOfNodes() << " nodes..\n";
         SeedManager::SetSeed(stoi(CFG("randSeed", "0xbabe"), nullptr, 0));
 
         setPositionAllocator(nodes);
-
-        /* if (nodes->setup() != SUCCESS) { */
-        /*     return FAILURE; */
-        /* } */
 
         setNodeSpecificParam(nodes);
 

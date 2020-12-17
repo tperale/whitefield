@@ -45,15 +45,13 @@ void LrwpanContainer::Create (uint32_t n)
         channel = lrWpanHelper.GetChannel();
     }
 
-    NetDeviceContainer devContainer;
     for (uint32_t i = 0; i < n; i++) {
         INFO("Creating node %i\n", i);
         Ptr<LrwpanIface> iface = ns3::CreateObject<LrwpanIface>(channel);
         Add(iface);
-        devContainer.Add(iface->GetDevice(0)->GetObject<LrWpanNetDevice>());
     }
 
-    lrWpanHelper.AssociateToPan(devContainer, CFG_PANID);
+    /* TODO this set the wrong mac address: lrWpanHelper.AssociateToPan(devContainer, CFG_PANID); */
 
     INFO("Using lr-wpan as PHY\n");
     string ns3_capfile = CFG("NS3_captureFile");

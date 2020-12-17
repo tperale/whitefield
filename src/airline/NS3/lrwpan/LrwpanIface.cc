@@ -55,18 +55,6 @@ static uint8_t wf_ack_status(LrWpanMcpsDataConfirmStatus status)
     }
 }
 
-static void setShortAddress(ns3::Ptr<ns3::LrWpanNetDevice> dev, uint16_t id)
-{
-    Mac16Address address;
-    uint8_t idBuf[2];
-
-    idBuf[0] = (id >> 8) & 0xff;
-    idBuf[1] = (id >> 0) & 0xff;
-    address.CopyFrom (idBuf);
-    dev->GetMac()->SetShortAddress(address);
-};
-
-
 static uint16_t addr2id(const Mac16Address addr)
 {
     uint16_t id = 0;
@@ -111,9 +99,8 @@ void LrwpanIface::txConfirm(uint16_t id, McpsDataRequestParams* req_params, uint
     SendAckToStackline(id, dst_id, status, *retries);
 }
 
-void LrwpanIface::rxIndication(uint16_t id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p)
+void LrwpanIface::rxIndication(uint16_t id, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p)
 {
-    CINFO << params.m_srcAddr << endl;
     INFO("[Node %i] Indication from %i to dst %i\n", id, addr2id(params.m_srcAddr), addr2id(params.m_dstAddr));
     DEFINE_MBUF(mbuf);
 
@@ -121,8 +108,6 @@ void LrwpanIface::rxIndication(uint16_t id, ns3::Ptr<ns3::LrWpanNetDevice> dev, 
         CERROR << "Pkt len" << p->GetSize() << " bigger than\n";
         return;
     }
-
-    fflush(stdout);
 
     mbuf->len           = p->CopyData(mbuf->buf, COMMLINE_MAX_BUF);
     mbuf->src_id        = addr2id(params.m_srcAddr);
@@ -140,11 +125,6 @@ int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
         // with their own set of parameter
         break;
     case CL_IEEE_802_15_4_EXT_ADDRESS: {
-        Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
-        if (!dev) {
-            CERROR << "get dev failed for lrwpan\n";
-            return FAILURE;
-        }
         // TODO HANDLE_CMD seems to always pass the max len (2048) as argument.
         if (len == 8) {
             Mac64Address address((char*) src);
@@ -154,18 +134,11 @@ int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
         return SUCCESS;
     }
     case CL_IEEE_802_15_4_PROMISCUOUS: {
-        Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
-
-        if (!dev) {
-            CERROR << "get dev failed for lrwpan\n";
-            return FAILURE;
-        }
         INFO("[Node %i] Set promis mode for lr-wpan iface\n", GetId());
         /* dev->GetMac()->SetPromiscuousMode(1); */
         return SUCCESS;
     }
     case CL_IEEE_802_15_4_TX_POWER: {
-        Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
         LrWpanSpectrumValueHelper svh;
         double txpow = *((double*) src);
         Ptr<SpectrumValue> psd = svh.CreateTxPowerSpectralDensity (txpow, 11);
@@ -187,13 +160,7 @@ int LrwpanIface::setParam(cl_param_t param, void* src, size_t len)
 int LrwpanIface::sendPacket(msg_buf_t *mbuf)
 {
     int numNodes = stoi(CFG("numOfNodes"));
-    Ptr<LrWpanNetDevice> dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
     Ptr<Packet> p0;
-
-    if (!dev) {
-        CERROR << "get dev failed for lrwpan\n";
-        return FAILURE;
-    }
 
     if(mbuf->flags & MBUF_IS_CMD) {
         CERROR << "MBUF CMD not handled in Airline... No need!" << endl;
@@ -237,27 +204,20 @@ int LrwpanIface::sendPacket(msg_buf_t *mbuf)
 }
 
 LrwpanIface::LrwpanIface(Ptr<SpectrumChannel> chan) : IFace(), channel{chan} {
-    Ptr<LrWpanNetDevice> lrwpan_dev = CreateObject<LrWpanNetDevice>();
-    AddDevice(lrwpan_dev);
-    dev = GetDevice(0)->GetObject<LrWpanNetDevice>();
-    dev->SetChannel(channel);
-    /* dev->SetAddress(id2addr(GetId())); */
-
     INFO("[Node %i] Initializing\n", GetId());
-    if (!dev) {
-        ERROR("Could not get device\n");
-        return;
-    }
+    dev = CreateObject<LrWpanNetDevice>();
+    AddDevice(dev);
+    dev->SetChannel(channel);
 
+    INFO("[Node %i] Setting short address\n", GetId());
+    dev->GetMac()->SetShortAddress(id2addr((uint16_t) GetId()));
+    dev->GetMac()->SetPanId(CFG_PANID);
     dev->GetMac()->SetMacMaxFrameRetries(CFG_INT("macMaxRetry", 3));
 
     /* Set Callbacks */
     INFO("[Node %i] Setting up callbacks\n", GetId());
     dev->GetMac()->SetMcpsDataConfirmCallback(MakeBoundCallback(&LrwpanIface::txConfirm, GetId(), &params, &tx_retries));
-    dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, GetId(), dev));
-
-    INFO("[Node %i] Setting short address\n", GetId());
-    setShortAddress(dev, (uint16_t) GetId());
+    dev->GetMac()->SetMcpsDataIndicationCallback(MakeBoundCallback(&LrwpanIface::rxIndication, GetId()));
 
     /* bool macAdd = CFG_INT("macHeaderAdd", 1); */
     /* if(!macAdd) { */
