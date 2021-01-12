@@ -4,23 +4,27 @@
 #include "IfaceHandler.h"
 #include <bits/stdint-uintn.h>
 #include <ns3/lr-wpan-module.h>
+#include <ns3/mobility-module.h>
 
-class LrwpanPhyIface: public IFace {
+class LrwpanPhyIface : public IFace {
 protected:
-    static void rxIndication(int id, ns3::Ptr<ns3::LrWpanNetDevice> dev, ns3::McpsDataIndicationParams params, ns3::Ptr<ns3::Packet> p);
-    static void txConfirm(int id, McpsDataRequestParams* req_params, uint8_t* retries, ns3::McpsDataConfirmParams params);
-    ns3::Ptr<Node> node;
+    static void rxIndication(uint16_t id, Ptr<LrWpanPhy> phy, uint32_t pdsuLength, Ptr<Packet> p, uint8_t lqi);
+    static void txConfirm(uint16_t id, Ptr<LrWpanPhy> phy, LrWpanPhyEnumeration status);
+
     McpsDataRequestParams params;
-    uint8_t tx_retries = 0;
+    uint8_t               tx_retries = 0;
+
+    Ptr<SpectrumChannel>               channel;
+    Ptr<ConstantPositionMobilityModel> mobility;
+    Ptr<LrWpanPhy>                     m_phy;
+
 public:
-    int init();
-    int init(ns3::Ptr<ns3::SpectrumChannel> channel);
-    int setParam(cl_param_t param, void* src, size_t len);
-    int sendPacket(msg_buf_t* mbuf);
+    int  setParam(cl_param_t param, void *src, size_t len);
+    int  sendPacket(msg_buf_t *mbuf);
     void startRx();
     void stopRx();
 
-    LrwpanPhyIface();
+    LrwpanPhyIface(Ptr<SpectrumChannel> chan);
 };
 
 #endif /* ifndef _LRWPANPHYIFACE_H_ */

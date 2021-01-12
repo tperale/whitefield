@@ -5,78 +5,20 @@
 #include "PropagationModel.h"
 #include <ns3/lr-wpan-module.h>
 
-int LrwpanPhyContainer::setup() 
+void LrwpanPhyContainer::Create(uint32_t n)
 {
-    INFO("setting up lrwpan\n");
+    INFO("Creating the LrWpan-phy Nodes\n");
+
+    /* LogComponentEnableAll(LOG_PREFIX_FUNC); */
+    /* LogComponentEnable("LrWpanPhy", LOG_LEVEL_ALL); */
+    /* LogComponentEnable("SingleModelSpectrumChannel", LOG_LEVEL_ALL); */
+
     static ns3::LrWpanHelper lrWpanHelper;
-    NetDeviceContainer devContainer;
+    channel = lrWpanHelper.GetChannel();
+    /* channel = CreateObject<SingleModelSpectrumChannel>(); */
 
-    /* for (NodeContainer::Iterator i = this->Begin (); i != this->End (); i++) */
-    /* { */
-    /*     Ptr<Node> node = *i; */
-
-    /*     Ptr<LrWpanNetDevice> netDevice = CreateObject<LrWpanNetDevice> (); */
-    /*     netDevice->SetChannel(lrWpanHelper.GetChannel()); */
-    /*     node->AddDevice(netDevice); */
-    /*     netDevice->SetNode(node); */
-    /*     devContainer.Add(netDevice); */
-    /* } */
-
-
-    lrWpanHelper.AssociateToPan(devContainer, CFG_PANID);
-
-    INFO("Using lr-wpan as PHY\n");
-    string ns3_capfile = CFG("NS3_captureFile");
-    if(!ns3_capfile.empty()) {
-        INFO("NS3 Capture File:%s\n", ns3_capfile.c_str());
-        lrWpanHelper.EnablePcapAll (ns3_capfile, false /*promiscuous*/);
+    for (uint32_t i = 0; i < n; i++) {
+        Ptr<LrwpanPhyIface> iface = ns3::CreateObject<LrwpanPhyIface>(channel);
+        Add(iface);
     }
-
-    /* bool macAdd = CFG_INT("macHeaderAdd", 1); */
-    ns3::LrWpanSpectrumValueHelper svh;
-    string loss_model = CFG("lossModel");
-    string del_model = CFG("delayModel");
-
-    if (!loss_model.empty() || !del_model.empty()) {
-        INFO("Setting up loss_model\n");
-        channel = ns3::CreateObject<ns3::SingleModelSpectrumChannel> ();
-        if (!channel) {
-            ERROR("Failed at channel creation\n");
-            return FAILURE;
-        }
-        if (!loss_model.empty()) {
-            string loss_model_param = CFG("lossModelParam");
-            plm = getLossModel(loss_model, loss_model_param);
-            if (!plm) {
-                ERROR("Failed to get loss model\n");
-                return FAILURE;
-            }
-            channel->AddPropagationLossModel(plm);
-        }
-        if (!del_model.empty()) {
-            static Ptr <ns3::PropagationDelayModel> pdm;
-            string del_model_param = CFG("delayModelParam");
-            pdm = getDelayModel(del_model, del_model_param);
-            if (!pdm) {
-                ERROR("Failed to get delay model\n");
-                return FAILURE;
-            }
-            channel->SetPropagationDelayModel(pdm);
-        }
-    }
-
-    INFO("Initialization of the nodes\n");
-    for (NodeContainer::Iterator i = this->Begin (); i != this->End (); i++)
-    {
-        Ptr<Node> node = *i;
-        INFO("Initialization of node %i\n", node->GetId());
-        Ptr<LrwpanPhyIface> iface = node->GetObject<LrwpanPhyIface>();
-        if (channel) {
-            iface->init(channel);
-        } else {
-            iface->init();
-        }
-    }
-
-    return SUCCESS;
 }

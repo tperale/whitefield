@@ -16,7 +16,6 @@ protected:
     McpsDataRequestParams params;
     uint8_t tx_retries = 0;
 public:
-    Ptr<LrWpanNetDevice> getDev();
     int setParam(cl_param_t param, void* src, size_t len);
     int sendPacket(msg_buf_t* mbuf);
 

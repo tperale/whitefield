@@ -51,8 +51,10 @@ enum {
     MBUF_IS_CMD,     // Mbuf is a cmd
     MBUF_IS_PARAM,   // The command will change the param from NS3
     MBUF_IS_SEND,    // The command will send a packet
+    MBUF_IS_RX_ON,   // Set the node in RX mode
+    MBUF_IS_RX_OFF,  // Stop the RX node for the node
+    MBUF_IS_RX,      // Reception packet
 };
-
 
 #pragma pack(push, 1)
 typedef struct _msg_buf_ {
